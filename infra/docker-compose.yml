@@ -1,0 +1,16 @@
+# Optional PostgreSQL for local development. The app defaults to SQLite without it.
+#   docker compose -f infra/docker-compose.yml up -d
+#   DATABASE_URL=postgresql+psycopg://autopilot:autopilot@localhost:5432/autopilot
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: autopilot
+      POSTGRES_PASSWORD: autopilot
+      POSTGRES_DB: autopilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - autopilot-pg:/var/lib/postgresql/data
+volumes:
+  autopilot-pg:

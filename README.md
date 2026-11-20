@@ -1,0 +1,110 @@
+# UPI Business Autopilot
+
+Sales-to-payment coordination for Indian wholesalers and distributors: photograph a paper bill,
+approve the invoice, track part payments and customer promises, and see what cash is **actually
+confirmed** versus merely expected. Not lending, not debt recovery.
+
+> **Demo mode is the default.** With no API keys, payments come from a simulated provider, bill
+> extraction returns a labelled sample draft, and customer messages stay in a local inbox simulator.
+> No real money moves and nothing is sent to anyone. The UI labels all of it "Simulated".
+
+## Run it locally
+
+Needs Python 3.11+ and Node 20+.
+
+```bash
+# 1. API (http://localhost:8000, docs at /docs)
+cd services/api
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python -m app.seed              # applies migrations, loads demo data
+uvicorn app.main:app --reload --port 8000
+```
+
+```bash
+# 2. Web (http://localhost:3000)
+cd apps/web
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 and pick a demo user (owner, staff, view-only, or the owner of a second
+merchant to see tenant isolation). `python -m app.seed --reset` or Settings → Reset demo data
+restores the sample data.
+
+Optional: `cp .env.example .env` and fill in keys; `pip install -r requirements-integrations.txt`
+for the Gemini / Razorpay / ElevenLabs SDKs. For PostgreSQL, start `infra/docker-compose.yml` and
+set `DATABASE_URL`.
+
+## Tests
+
+```bash
+cd services/api && pytest
+```
+
+26 tests cover: the ₹20,000 → ₹5,000 → ₹10,000 → ₹5,000-remaining → closed scenario, duplicate and
+out-of-order webhooks, forged/tampered signatures, overpayment, over-allocation, unverified
+receipts, disputes and refunds, multi-tenant isolation, role checks, upload → review → approve,
+promise parsing ("₹3,000 on Friday, ₹2,000 on Monday" → two promises, zero receipts), the daily
+report, the assistant, outbound gating, the WhatsApp webhook and migration/model parity.
+To run them on PostgreSQL: `TEST_DATABASE_URL=postgresql+psycopg://... pytest` (after
+`alembic upgrade head` against that database).
+
+## Five-minute demo
+
+1. **Today** – pending, confirmed received, promised today, unverified claims, collection visits.
+   Ask "Who agreed to pay today?", "How much did Murugan Stores pay?", "What is my confirmed cash in?"
+2. **Bills → Try a sample WhatsApp bill photo** – the draft flags a wrong line total, a smudged
+   quantity and missing tax. Fix, tick the acknowledgement, approve → invoice.
+3. **Invoices → INV-0001** – ₹20,000, two receipts, ₹5,000 due. Prepare a ₹5,000 UPI request,
+   approve it (owner), "Simulate customer paying" → paid, with the full allocation trail.
+4. **Promises** – receive "₹3,000 on Friday, ₹2,000 on Monday", confirm → two promises, balance unchanged.
+5. **Payments** – send a duplicate webhook, a forged signature, an unmatched payment, a refund or a
+   dispute; confirm or dispute the seeded screenshot claim.
+
+## What is live, test mode or simulated
+
+| Integration | Without keys | With keys | Verified in this build |
+|---|---|---|---|
+| Payments | Demo provider, **simulated**, signed webhooks | Razorpay **test mode** (`rzp_test_` only) | Demo: yes. Razorpay: code path only, never run against an account |
+| Bill extraction | **Simulated** fixed sample (does not read your file) | Gemini via `google-genai` | Simulated: yes. Gemini: not run |
+| Assistant | Rule-based routing over read-only tools | Gemini chooses the tool; numbers still come from the ledger | Rules: yes. Gemini: not run |
+| Voice | Browser speech over the text assistant | ElevenLabs agent via signed URL + `/v1/voice-tools/*` | Browser: yes. ElevenLabs: not run |
+| WhatsApp inbound | Inbox simulator | Meta Cloud API webhook (signature-checked) | Webhook parsing tested with signed fixtures; media download not run |
+| WhatsApp outbound / AI calls | **Not built** | **Not built** | Gate tested; no send code exists |
+
+## Rules the code enforces
+
+- Money is integer paise. Invoice due is always `total − Σ allocations`; there is no stored balance.
+- Allocations and audit events are immutable; refunds and disputes are compensating entries.
+- Only a signed provider event, or an owner's confirmation of a manual receipt, changes a balance.
+  Provider-verified, merchant-confirmed, unverified, disputed and promised amounts are never summed together.
+- Webhooks: raw-body HMAC (constant-time), `unique(provider, event_id)`, account → merchant
+  ownership, INR only, amount checks, row locks, no state regression on late events.
+- AI never posts to the ledger: extraction yields a draft, the assistant is read-only.
+- Outbound customer messages need merchant approval and a recorded opt-in; overdue/collection
+  reminders are refused on every channel.
+
+## Layout
+
+```
+apps/web/              Next.js + Tailwind frontend (proxies /api/* to the API)
+services/api/app/      FastAPI routes, auth, tenancy, models, seed
+services/api/domain/   ledger, reconciliation, extraction review, reports, assistant, policy
+services/api/adapters/ demo + real provider adapters (payments, Gemini, WhatsApp, voice)
+services/api/workers/  extraction and WhatsApp media jobs
+services/api/migrations/  Alembic
+docs/                  architecture and research notes
+fixtures/              fictional sample bill
+```
+
+## Known gaps
+
+- `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `INTEGRATIONS_AND_COMPLIANCE.md`, `MVP_ROADMAP.md`,
+  `TEST_PLAN.md` and `schemas/core.sql` were referenced by the brief but not supplied; this build
+  follows `SKILL.md`, `BUILD_PROMPT.md`, `docs/ARCHITECTURE.md` and `docs/RESEARCH_GITHUB.md`.
+- Auth is demo-only passwordless login (disabled when `DEMO_MODE=false`); there is no production sign-in.
+- Uploads are stored unencrypted on local disk. No rate limiting, PII encryption or retention jobs yet.
+- `google-adk` is not used; the assistant is a deterministic tool router. Voice-note intake is not built.
+- Razorpay correlation relies on the payment carrying the link's `notes.payment_request_id`;
+  confirm this in a test account before relying on it. Partial refunds are flagged, not auto-posted.

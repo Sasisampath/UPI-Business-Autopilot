@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Tamil", sans-serif;
+  --color-ink: #14212b;
+  --color-muted: #5b6b78;
+  --color-line: #dfe5ea;
+  --color-canvas: #f4f6f8;
+  --color-brand: #0f5c5c;
+  --color-brand-soft: #e3f1f0;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+input, select, textarea {
+  background: #fff;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

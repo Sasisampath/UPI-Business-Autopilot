@@ -1,0 +1,4 @@
+# Optional: only needed when the matching credentials are configured.
+google-genai>=1.0
+elevenlabs>=2.0
+razorpay>=1.4
