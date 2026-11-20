@@ -146,7 +146,7 @@ export default function ReviewBillPage() {
           </Notice>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="grid gap-4">
           <Card title="Original bill">
             {draft.upload.content_type === "application/pdf" && image ? (
               <a href={image} target="_blank" rel="noreferrer" className="text-sm text-brand underline">Open the PDF in a new tab</a>
@@ -161,7 +161,7 @@ export default function ReviewBillPage() {
           <div className="space-y-4">
             <Card title="Draft details">
               <fieldset disabled={!editable} className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3">
                   <Field label="Buyer as written on the bill" error={fieldError("customer_name")}>
                     <input className={`${inputCls} ${flagged("customer_name") && !customerId ? "border-amber-500 bg-amber-50" : ""}`} value={form.customer_name ?? ""} onChange={(e) => update({ customer_name: e.target.value || null }, "customer_name")} />
                   </Field>
@@ -187,12 +187,12 @@ export default function ReviewBillPage() {
                       return (
                         <div key={i} className={`rounded-lg border p-2 ${conflict ? "border-amber-500 bg-amber-50/60" : "border-line"}`}>
                           <div className="grid grid-cols-6 gap-2">
-                            <input aria-label={`Item ${i + 1} description`} className={`${inputCls} col-span-6 sm:col-span-3`} placeholder="Description" value={it.description ?? ""} onChange={(e) => updateItem(i, { description: e.target.value || null })} />
-                            <input aria-label={`Item ${i + 1} quantity`} inputMode="decimal" className={`${inputCls} tabular col-span-2 text-right sm:col-span-1 ${it.quantity ? "" : "border-amber-500 bg-amber-50"}`} placeholder="Qty" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value.trim() || null })} />
-                            <div className="col-span-2 sm:col-span-1">
+                            <input aria-label={`Item ${i + 1} description`} className={`${inputCls} col-span-6`} placeholder="Description" value={it.description ?? ""} onChange={(e) => updateItem(i, { description: e.target.value || null })} />
+                            <input aria-label={`Item ${i + 1} quantity`} inputMode="decimal" className={`${inputCls} tabular col-span-2 text-right ${it.quantity ? "" : "border-amber-500 bg-amber-50"}`} placeholder="Qty" value={it.quantity ?? ""} onChange={(e) => updateItem(i, { quantity: e.target.value.trim() || null })} />
+                            <div className="col-span-2">
                               <Rupees label={`Item ${i + 1} unit price`} value={it.unit_price_paise} flagged={it.unit_price_paise === null} onChange={(v) => updateItem(i, { unit_price_paise: v })} />
                             </div>
-                            <div className="col-span-2 sm:col-span-1">
+                            <div className="col-span-2">
                               <Rupees label={`Item ${i + 1} line total on bill`} value={it.line_total_paise} flagged={!!conflict} onChange={(v) => updateItem(i, { line_total_paise: v })} />
                             </div>
                           </div>
@@ -219,7 +219,7 @@ export default function ReviewBillPage() {
                   )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3">
                   <Field label="Subtotal on bill (₹)" error={fieldError("subtotal_paise")} hint="Leave empty if not written">
                     <Rupees label="Subtotal" value={form.subtotal_paise} flagged={flagged("subtotal_paise")} onChange={(v) => update({ subtotal_paise: v }, "subtotal_paise")} />
                   </Field>
@@ -231,7 +231,7 @@ export default function ReviewBillPage() {
                   </Field>
                 </div>
               </fieldset>
-              <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <div className="mt-3 flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm">
                 <span className="text-muted">System-calculated total</span>
                 <span className="tabular font-semibold">{dirty ? "Save to recalculate" : computed ? inr(computed.total_paise) : "Incomplete lines"}</span>
               </div>

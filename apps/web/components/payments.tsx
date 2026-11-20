@@ -58,7 +58,7 @@ export function PaymentRow({ p, onChange, showCustomer = false }: { p: Payment; 
         </div>
       )}
       {mode && (
-        <div className="mt-2 space-y-2 rounded-lg bg-slate-50 p-2">
+        <div className="mt-2 space-y-2 rounded-lg bg-stone-50 p-2">
           <Field label={mode === "confirm" ? "How did you verify this money? (kept in the audit log)" : "Reason (kept in the audit log)"}>
             <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={mode === "confirm" ? "e.g. Counted cash and deposited; seen in bank statement" : "e.g. No credit in bank statement"} />
           </Field>
@@ -96,13 +96,13 @@ export function RequestRow({ r, onChange, showInvoice = false }: { r: PaymentReq
         <div className="mt-1.5 flex flex-wrap gap-2">
           {r.status === "proposed" && me.role === "owner" && (
             <Button busy={act.busy === "approve"} onClick={() => act.run("approve", async () => (await post(`/v1/payment-intents/${r.id}/approve`, { provider: "demo" }), onChange()))}>
-              Approve (demo provider)
+              Approve request
             </Button>
           )}
           {r.status === "proposed" && me.role !== "owner" && <span className="text-xs text-muted">Waiting for an owner to approve.</span>}
           {r.status === "approved" && r.mode === "simulated" && (
             <Button busy={act.busy === "pay"} onClick={() => act.run("pay", async () => (await post("/v1/demo/simulate-payment-event", { payment_request_id: r.id }), onChange()))}>
-              Simulate customer paying
+              Customer pays (demo)
             </Button>
           )}
           {r.status === "approved" && r.link_url && (
@@ -130,12 +130,12 @@ export function ProposeRequest({ invoiceId, duePaise, onChange }: { invoiceId: s
         act.run("propose", async () => (await post("/v1/payment-intents", { invoice_id: invoiceId, amount_paise: amount }), setText(""), onChange()));
       }}
     >
-      <div className="w-40">
+      <div className="min-w-0 flex-1">
         <Field label="Amount to request (₹)" error={invalid ? `Enter up to ${inr(duePaise)}` : undefined}>
           <input className={`${inputCls} tabular`} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} placeholder={String(Math.floor(duePaise / 100))} />
         </Field>
       </div>
-      <Button type="submit" variant="secondary" busy={!!act.busy} disabled={amount === null || invalid}>Prepare UPI request</Button>
+      <Button type="submit" variant="secondary" busy={!!act.busy} disabled={amount === null || invalid}>Prepare request</Button>
       {act.error && <div className="w-full"><ErrorBox message={act.error} /></div>}
     </form>
   );
@@ -151,7 +151,7 @@ export function ManualReceipt({ invoiceId, customerId, onChange }: { invoiceId: 
   if (!open) return <Button variant="ghost" onClick={() => setOpen(true)}>Record a cash or claimed receipt</Button>;
   return (
     <form
-      className="space-y-2 rounded-lg bg-slate-50 p-3"
+      className="space-y-2 rounded-lg bg-stone-50 p-3"
       onSubmit={(e) => {
         e.preventDefault();
         act.run("manual", async () => {
@@ -163,7 +163,7 @@ export function ManualReceipt({ invoiceId, customerId, onChange }: { invoiceId: 
         });
       }}
     >
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <Field label="Amount (₹)">
           <input className={`${inputCls} tabular`} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} />
         </Field>

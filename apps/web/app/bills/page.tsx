@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { useMe } from "@/components/shell";
-import { Badge, Button, Card, Empty, ErrorBox, Loading, Notice, PageHeader, SimTag, useAction } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Loading, Notice, PageHeader, Segmented, SimTag, useAction } from "@/components/ui";
 import { api, fmtDateTime, inr, post, useApi } from "@/lib/api";
 
 interface Draft {
@@ -41,7 +41,8 @@ export default function BillsPage() {
 
   return (
     <>
-      <PageHeader title="Bills" subtitle="Photograph a paper bill. You review and approve before any invoice exists." />
+      <PageHeader title="Bills" subtitle="Click a photo of the paper bill. You check it before it becomes an invoice." />
+      <Segmented value="bills" options={[{ value: "bills", label: "Bill photos", href: "/bills" }, { value: "invoices", label: "Invoices", href: "/invoices" }]} />
       <div className="space-y-4">
         <Card title="Add a bill">
           {!canWrite ? (
@@ -59,12 +60,12 @@ export default function BillsPage() {
                   e.target.value = "";
                 }}
               />
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2">
                 <Button busy={act.busy === "upload"} onClick={() => fileRef.current?.click()}>
-                  Upload photo or PDF
+                  Take photo or upload bill
                 </Button>
                 <Button variant="secondary" busy={act.busy === "sample"} onClick={() => act.run("sample", sample)}>
-                  Try a sample WhatsApp bill photo
+                  Try a sample WhatsApp bill
                 </Button>
               </div>
               <p className="mt-2 text-xs text-muted">JPEG, PNG, WebP or PDF, up to 10 MB. The sample arrives as a simulated WhatsApp media message.</p>
@@ -87,7 +88,7 @@ export default function BillsPage() {
               const blocking = d.issues.filter((i) => i.severity === "blocking").length;
               return (
                 <li key={d.id}>
-                  <Link href={d.status === "approved" && d.invoice_id ? `/invoices/${d.invoice_id}` : `/bills/${d.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:bg-slate-50">
+                  <Link href={d.status === "approved" && d.invoice_id ? `/invoices/${d.invoice_id}` : `/bills/${d.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm active:bg-brand-soft">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{d.payload.customer_name ?? "Buyer not read"}</p>
                       <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">

@@ -46,15 +46,15 @@ export default function CustomerPage() {
 
   return (
     <>
-      <PageHeader title={c.name} back={{ href: "/customers", label: "Customers" }} subtitle={c.phone ?? "No phone recorded"} action={<Link href={`/conversations?customer=${c.id}`} className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium">Conversation</Link>} />
+      <PageHeader title={c.name} back={{ href: "/customers", label: "Customers" }} subtitle={c.phone ?? "No phone recorded"} action={<Link href={`/conversations?customer=${c.id}`} className="rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-brand">Chat</Link>} />
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3">
           {[
             ["Invoiced", t.invoiced_paise, ""],
             ["Provider verified", t.provider_verified_paise, "text-emerald-700"],
             ["Merchant confirmed", t.merchant_confirmed_paise, "text-emerald-700"],
             ["Owes now", t.outstanding_paise, ""],
-            ["Promised", t.promised_open_paise, "text-sky-700"],
+            ["Promised", t.promised_open_paise, "text-amber-700"],
           ].map(([label, v, cls]) => (
             <div key={label as string} className="rounded-xl border border-line bg-white p-3">
               <p className="text-xs font-medium text-muted">{label}</p>
@@ -70,13 +70,13 @@ export default function CustomerPage() {
           </p>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           <Card title="Invoices">
             {data.invoices.length === 0 ? <Empty>No invoices for this customer.</Empty> : (
               <ul className="divide-y divide-line">
                 {data.invoices.map((i) => (
                   <li key={i.id}>
-                    <Link href={`/invoices/${i.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:bg-slate-50">
+                    <Link href={`/invoices/${i.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm active:bg-brand-soft">
                       <span><span className="font-medium text-brand">{i.number}</span> <span className="text-xs text-muted">{fmtDate(i.invoice_date)}</span></span>
                       <span className="flex items-center gap-2"><span className="tabular">{inr(i.due_paise)} due of {inr(i.total_paise)}</span><Badge status={i.status} /></span>
                     </Link>
@@ -106,7 +106,7 @@ export default function CustomerPage() {
           )}
         </Card>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           <Card title="Stated preferences">
             <fieldset disabled={!canWrite} className="space-y-3">
               <Field label="Preferred way to pay" hint="Record only what the customer has told you.">
@@ -134,7 +134,7 @@ export default function CustomerPage() {
             </ul>
             {canWrite && (
               <div className="mt-3 space-y-2 border-t border-line pt-3">
-                <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
+                <div className="grid gap-2">
                   <select aria-label="Channel" className={inputCls} value={channel} onChange={(e) => setChannel(e.target.value)}>
                     {Object.entries(CHANNELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                   </select>

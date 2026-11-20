@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const act = useAction();
   return (
     <>
-      <PageHeader title="Settings and integrations" subtitle="Every connection is labelled live, test mode or simulated." />
+      <PageHeader back={{ href: "/more", label: "More" }} title="Settings" subtitle="Every connection is labelled live, test mode or simulated." />
       <div className="space-y-4">
         <Card title="Integrations">
           {error && <ErrorBox message={error} onRetry={reload} />}

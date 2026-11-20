@@ -1,9 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Assistant } from "@/components/assistant";
 import { useMe } from "@/components/shell";
-import { Badge, Card, Empty, ErrorBox, Loading, PageHeader, SimTag, Stat } from "@/components/ui";
+import { Avatar, Badge, Card, Empty, ErrorBox, Loading, SimTag, Stat } from "@/components/ui";
 import { fmtDate, inr, useApi } from "@/lib/api";
 
 interface PromiseRow {
@@ -21,7 +20,6 @@ interface PromiseRow {
 interface Contact {
   count: number;
   simulated_count: number;
-  customers: { customer_id: string; customer_name: string; simulated: boolean }[];
 }
 
 interface Report {
@@ -35,7 +33,6 @@ interface Report {
     merchant_confirmed_paise: number;
     confirmed_total_paise: number;
     unverified_claims_paise: number;
-    disputed_paise: number;
   };
   promises_due_today: PromiseRow[];
   promises_made_today: PromiseRow[];
@@ -47,174 +44,175 @@ interface Report {
   definitions: Record<string, string>;
 }
 
-export default function TodayPage() {
+const ACTIONS = [
+  { href: "/bills", label: "Add bill", icon: "M6 3h12v18l-3-2-3 2-3-2-3 2V3zM12 8v6m-3-3h6" },
+  { href: "/invoices", label: "UPI request", icon: "M4 12h13m-5-5l5 5-5 5M20 5v14" },
+  { href: "/conversations", label: "Note promise", icon: "M4 5h16v11H10l-5 4v-4H4V5zm4.5 5.5l2.5 2.5 4.5-5" },
+  { href: "/assistant", label: "Ask", icon: "M12 4a4 4 0 014 4v3a4 4 0 01-8 0V8a4 4 0 014-4zm-7 7a7 7 0 0014 0M12 18v3" },
+];
+
+export default function HomePage() {
   const me = useMe();
   const [date, setDate] = useState(me.today);
   const { data: r, error, loading, reload } = useApi<Report>(`/v1/reports/today?date=${date}`);
+  const isToday = date === me.today;
+  const first = me.name.split(/[\s(]/)[0];
 
   return (
-    <>
-      <PageHeader
-        title={date === me.today ? "Today" : "Daily report"}
-        subtitle={fmtDate(date)}
-        action={<input type="date" aria-label="Report date" className="rounded-lg border border-line bg-white px-3 py-2 text-sm" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} />}
-      />
+    <div className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">Vanakkam, {first}</p>
+          <h1 className="text-[22px] font-bold leading-tight tracking-tight">{isToday ? "Today" : fmtDate(date)}</h1>
+        </div>
+        <label className="relative rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-brand">
+          {isToday ? fmtDate(date) : "Change day"}
+          <input type="date" aria-label="Report date" className="absolute inset-0 cursor-pointer opacity-0" value={date} max={me.today} onChange={(e) => e.target.value && setDate(e.target.value)} />
+        </label>
+      </div>
+
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {loading && !r && <Loading label="Loading report" />}
+      {loading && !r && <Loading label="Getting today's numbers" />}
       {r && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Pending from customers" paise={r.outstanding_paise} hint={`${r.open_invoice_count} open invoice${r.open_invoice_count === 1 ? "" : "s"}`} />
-            <Stat
-              label="Confirmed received"
-              paise={r.received.confirmed_total_paise}
-              tone="text-emerald-700"
-              hint={
-                <>
-                  {inr(r.received.provider_verified_paise)} provider verified
-                  <SimTag show={!!r.received.provider_verified_by_mode.simulated} />
-                  {r.received.merchant_confirmed_paise > 0 && <span>· {inr(r.received.merchant_confirmed_paise)} merchant confirmed</span>}
-                </>
-              }
-            />
-            <Stat label="Promised for this day" paise={r.expected_today_paise} tone="text-sky-700" hint="Stated intentions, not money" />
-            <Stat label="Claimed, not verified" paise={r.received.unverified_claims_paise} tone="text-amber-700" hint="Not counted as received" />
+        <>
+          <section className="rounded-3xl bg-brand p-4 text-white shadow-lg shadow-emerald-900/20">
+            <p className="text-[13px] font-semibold text-white/80">Pending from customers</p>
+            <p className="tabular mt-0.5 text-[40px] font-bold leading-none tracking-tight">{inr(r.outstanding_paise)}</p>
+            <p className="mt-1.5 text-xs text-white/80">
+              {r.open_invoice_count} open bill{r.open_invoice_count === 1 ? "" : "s"} · promises do not reduce this
+            </p>
+            <div className="mt-4 rounded-2xl bg-white/12 p-3">
+              <CashBar received={r.received.confirmed_total_paise} expected={r.expected_today_paise} />
+            </div>
+          </section>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label="Received, confirmed" paise={r.received.confirmed_total_paise} tone="text-emerald-700" hint={<SimTag show={!!r.received.provider_verified_by_mode.simulated} />} />
+            <Stat label={isToday ? "Promised for today" : "Promised that day"} paise={r.expected_today_paise} tone="text-amber-700" hint="Not money yet" />
+            <Stat label="Not verified yet" paise={r.received.unverified_claims_paise} tone="text-orange-700" hint="Not counted" />
           </div>
 
-          <Card title="Cash in vs expected">
-            <CashBar received={r.received.confirmed_total_paise} expected={r.expected_today_paise} />
+          <div className="grid grid-cols-4 gap-2">
+            {ACTIONS.map((a) => (
+              <Link key={a.href} href={a.href} className="flex flex-col items-center gap-1.5 rounded-2xl border border-line bg-white px-1 py-3 text-center text-[11px] font-semibold leading-tight active:bg-brand-soft">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-brand">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={a.icon} /></svg>
+                </span>
+                {a.label}
+              </Link>
+            ))}
+          </div>
+
+          <Card title="Ready to collect" action={r.promises_due_today.length > 0 ? <span className="tabular text-sm font-bold text-amber-700">{inr(r.expected_today_paise)}</span> : undefined}>
+            {r.promises_due_today.length === 0 ? (
+              <Empty>No customer has promised to pay {isToday ? "today" : "on this day"}.</Empty>
+            ) : (
+              <ul className="-my-1 divide-y divide-line">
+                {r.promises_due_today.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/customers/${p.customer_id}`} className="flex items-center gap-3 py-2.5">
+                      <Avatar name={p.customer_name} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-semibold">{p.customer_name}</span>
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1">
+                          {p.method === "cash" ? <Badge label={p.pickup_window ? `Cash pickup · ${p.pickup_window}` : "Cash"} tone="amber" /> : <Badge label={p.method === "upi" ? "UPI ready" : "Other"} tone="green" />}
+                          <SimTag show={p.simulated} />
+                        </span>
+                      </span>
+                      <span className="tabular text-base font-bold">{inr(p.amount_paise)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-[11px] text-muted">From what customers themselves said. A promise is not a payment.</p>
           </Card>
 
-          {date === me.today && <Assistant />}
+          {r.cash_pickups.length > 0 && (
+            <Card title="Cash pickups this week">
+              <ul className="-my-1 divide-y divide-line">
+                {r.cash_pickups.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{p.customer_name}</span>
+                      <span className="text-xs text-muted">{fmtDate(p.promised_date)} · {p.pickup_window}</span>
+                    </span>
+                    <span className="tabular font-bold">{inr(p.amount_paise)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-muted">Only customers who confirmed a pickup time are listed.</p>
+            </Card>
+          )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Customers who promised to pay this day">
-              {r.promises_due_today.length === 0 ? <Empty>No promises are dated for this day.</Empty> : <PromiseList rows={r.promises_due_today} />}
-            </Card>
-            <Card title="Proposed collection visits" action={<Badge label="Confirmed availability only" tone="gray" />}>
-              {r.cash_pickups.length === 0 ? (
-                <Empty>No customer has confirmed a cash pickup time in the next 7 days.</Empty>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {r.cash_pickups.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <div className="min-w-0">
-                        <Link href={`/customers/${p.customer_id}`} className="font-medium hover:underline">
-                          {p.customer_name}
-                        </Link>
-                        <p className="text-xs text-muted">
-                          {fmtDate(p.promised_date)} · {p.pickup_window} <SimTag show={p.simulated} />
-                        </p>
-                      </div>
-                      <span className="tabular font-medium">{inr(p.amount_paise)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
+          {(r.disputes.length > 0 || r.open_mismatches.some((m) => m.kind !== "dispute_open")) && (
+            <Link href="/payments" className="block rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+              <p className="font-bold">Needs your attention</p>
+              <p className="mt-0.5 text-[13px]">
+                {r.disputes.length > 0 && `${r.disputes.length} disputed payment${r.disputes.length === 1 ? "" : "s"}. `}
+                {r.open_mismatches.filter((m) => m.kind !== "dispute_open").length > 0 && `${r.open_mismatches.filter((m) => m.kind !== "dispute_open").length} payment mismatch to check. `}
+                Tap to open Payments.
+              </p>
+            </Link>
+          )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Customer activity">
-              <dl className="grid grid-cols-3 gap-3 text-sm">
-                <Activity label="Contacted" c={r.contacted} />
-                <Activity label="Replied" c={r.replied} />
-                <div>
-                  <dt className="text-xs text-muted">New promises</dt>
-                  <dd className="tabular mt-0.5 text-lg font-semibold">{r.promises_made_today.length}</dd>
-                </div>
-              </dl>
-              <p className="mt-3 text-xs text-muted">Counts come only from recorded messages. Simulated inbox activity is shown separately and never counted as real contact.</p>
-            </Card>
-            <Card title="Needs your attention" action={<Link href="/payments" className="text-sm text-brand hover:underline">Open payments</Link>}>
-              {r.disputes.length + r.open_mismatches.length === 0 ? (
-                <Empty>No disputes or unresolved mismatches.</Empty>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {r.disputes.map((d) => (
-                    <li key={d.id} className="flex items-center justify-between gap-2">
-                      <span>
-                        <Badge status="disputed" /> {d.customer_name ?? "Unknown payer"}
-                      </span>
-                      <span className="tabular">{inr(d.amount_paise)}</span>
-                    </li>
-                  ))}
-                  {r.open_mismatches.filter((m) => m.kind !== "dispute_open").map((m) => (
-                    <li key={m.id}>
-                      <Badge label={m.kind.replaceAll("_", " ")} tone="amber" /> <span className="text-muted">{m.detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-          </div>
+          <Card title="Customer activity">
+            <dl className="grid grid-cols-3 gap-2 text-center">
+              <Activity label="Contacted" c={r.contacted} />
+              <Activity label="Replied" c={r.replied} />
+              <div>
+                <dd className="tabular text-xl font-bold">{r.promises_made_today.length}</dd>
+                <dt className="text-[11px] font-semibold text-muted">New promises</dt>
+              </div>
+            </dl>
+            <p className="mt-2 text-[11px] leading-snug text-muted">Counted only from recorded messages. Demo inbox activity is shown separately, never as real contact.</p>
+          </Card>
 
-          <details className="rounded-xl border border-line bg-white px-4 py-3 text-sm">
-            <summary className="cursor-pointer font-medium">How these numbers are defined</summary>
-            <dl className="mt-2 space-y-1.5 text-xs text-muted">
+          <details className="rounded-2xl border border-line bg-white px-4 py-3 text-sm">
+            <summary className="cursor-pointer font-semibold">How these numbers are counted</summary>
+            <dl className="mt-2 space-y-1.5 text-xs leading-snug text-muted">
               {Object.entries(r.definitions).map(([k, v]) => (
                 <div key={k}>
-                  <dt className="inline font-medium text-ink">{k.replaceAll("_", " ")}: </dt>
+                  <dt className="inline font-semibold capitalize text-ink">{k.replaceAll("_", " ")}: </dt>
                   <dd className="inline">{v}</dd>
                 </div>
               ))}
             </dl>
           </details>
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 }
 
 function CashBar({ received, expected }: { received: number; expected: number }) {
   const max = Math.max(received, expected, 1);
   return (
-    <div className="space-y-2 text-sm">
+    <div className="space-y-2 text-xs">
       {[
-        { label: "Confirmed received", value: received, color: "bg-emerald-600" },
-        { label: "Promised (expected)", value: expected, color: "bg-sky-500" },
+        { label: "Cash in, confirmed", value: received, color: "bg-white" },
+        { label: "Promised for the day", value: expected, color: "bg-amber-300" },
       ].map((row) => (
-        <div key={row.label} className="grid grid-cols-[9.5rem_1fr_auto] items-center gap-3">
-          <span className="text-muted">{row.label}</span>
-          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <div key={row.label}>
+          <div className="flex justify-between font-semibold">
+            <span className="text-white/85">{row.label}</span>
+            <span className="tabular">{inr(row.value)}</span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/20">
             <div className={`h-full rounded-full ${row.color}`} style={{ width: `${(row.value / max) * 100}%` }} />
           </div>
-          <span className="tabular font-medium">{inr(row.value)}</span>
         </div>
       ))}
-      <p className="text-xs text-muted">Shown side by side, never added together: a receipt may or may not be the payment that was promised.</p>
     </div>
-  );
-}
-
-function PromiseList({ rows }: { rows: PromiseRow[] }) {
-  return (
-    <ul className="divide-y divide-line">
-      {rows.map((p) => (
-        <li key={p.id} className="py-2 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <Link href={`/customers/${p.customer_id}`} className="font-medium hover:underline">
-              {p.customer_name}
-            </Link>
-            <span className="tabular font-medium">{inr(p.amount_paise)}</span>
-          </div>
-          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
-            <Badge label={p.method.toUpperCase()} tone="blue" />
-            <SimTag show={p.simulated} />
-            <span className="truncate">“{p.evidence_text}”</span>
-          </p>
-        </li>
-      ))}
-    </ul>
   );
 }
 
 function Activity({ label, c }: { label: string; c: Contact }) {
   return (
     <div>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="tabular mt-0.5 text-lg font-semibold">{c.count}</dd>
-      {c.simulated_count > 0 && <dd className="text-xs text-violet-700">+{c.simulated_count} simulated</dd>}
+      <dd className="tabular text-xl font-bold">{c.count}</dd>
+      <dt className="text-[11px] font-semibold text-muted">{label}</dt>
+      {c.simulated_count > 0 && <dd className="text-[11px] font-semibold text-violet-700">+{c.simulated_count} demo</dd>}
     </div>
   );
 }

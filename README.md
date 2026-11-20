@@ -36,6 +36,13 @@ Optional: `cp .env.example .env` and fill in keys; `pip install -r requirements-
 for the Gemini / Razorpay / ElevenLabs SDKs. For PostgreSQL, start `infra/docker-compose.yml` and
 set `DATABASE_URL`.
 
+## One mobile app, everywhere
+
+There is a single mobile layout. On a phone it runs full screen. On a laptop the same running app
+sits in a centred, phone-sized viewport on a chat-wallpaper stage, so a projected demo still looks
+like a phone app. No desktop layout, sidebar or data tables exist. Tabs: Home, Bills, Promises,
+Payments, More (Customers, Invoices, Assistant, Settings).
+
 ## Tests
 
 ```bash
@@ -52,13 +59,13 @@ To run them on PostgreSQL: `TEST_DATABASE_URL=postgresql+psycopg://... pytest` (
 
 ## Five-minute demo
 
-1. **Today** – pending, confirmed received, promised today, unverified claims, collection visits.
-   Ask "Who agreed to pay today?", "How much did Murugan Stores pay?", "What is my confirmed cash in?"
+1. **Home** – pending, confirmed received, promised today, unverified claims, collection visits.
+   Tap Ask: "Who agreed to pay today?", "How much did Murugan Stores pay?", "What is my confirmed cash in?"
 2. **Bills → Try a sample WhatsApp bill photo** – the draft flags a wrong line total, a smudged
    quantity and missing tax. Fix, tick the acknowledgement, approve → invoice.
 3. **Invoices → INV-0001** – ₹20,000, two receipts, ₹5,000 due. Prepare a ₹5,000 UPI request,
    approve it (owner), "Simulate customer paying" → paid, with the full allocation trail.
-4. **Promises** – receive "₹3,000 on Friday, ₹2,000 on Monday", confirm → two promises, balance unchanged.
+4. **Promises** – tap Receive on "₹3,000 on Friday, ₹2,000 on Monday", confirm → two promises, balance unchanged.
 5. **Payments** – send a duplicate webhook, a forged signature, an unmatched payment, a refund or a
    dispute; confirm or dispute the seeded screenshot claim.
 
