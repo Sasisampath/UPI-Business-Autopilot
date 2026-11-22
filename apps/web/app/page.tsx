@@ -22,6 +22,7 @@ interface Contact {
 }
 
 interface Report {
+  movement: { opening_outstanding_paise: number; new_invoice_count: number; new_invoices_paise: number; verified_applied_paise: number; closing_outstanding_paise: number };
   outstanding_paise: number;
   open_invoice_count: number;
   expected_today_paise: number;
@@ -78,10 +79,10 @@ export default function HomePage() {
         <div className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3">
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-bold text-amber-950">See it in 2 minutes</p>
-            <p className="text-xs leading-snug text-amber-900">Bill photo to verified payment. Starts from fresh sample data.</p>
+            <p className="text-xs leading-snug text-amber-900">Paper bill to verified payment. Starts from fresh sample data.</p>
             {startError && <p className="mt-1 text-xs font-semibold text-rose-700">{startError}</p>}
           </div>
-          <Button busy={starting} onClick={() => (setStarting(true), resetDemo(me.user_id, true).catch((e) => (setStartError(e.message), setStarting(false))))}>Try the demo</Button>
+          <Button busy={starting} onClick={() => (setStarting(true), resetDemo(true).catch((e) => (setStartError(e.message), setStarting(false))))}>Try the demo</Button>
         </div>
       )}
 
@@ -91,10 +92,20 @@ export default function HomePage() {
         <>
           <section className="rounded-3xl bg-brand p-4 text-white shadow-lg shadow-emerald-900/20" aria-label="Customers still owe">
             <p className="text-sm font-semibold text-white/85">Customers still owe you</p>
-            <p className="tabular mt-0.5 text-[42px] font-bold leading-none tracking-tight">{inr(r.outstanding_paise)}</p>
-            <p className="mt-2 text-[13px] text-white/85">
-              across {r.open_invoice_count} unpaid bill{r.open_invoice_count === 1 ? "" : "s"}. Only verified payments bring this down.
+            <p className="tabular mt-0.5 text-[40px] font-bold leading-none tracking-tight">{inr(r.outstanding_paise)}</p>
+            <p className="mt-1.5 text-[13px] text-white/85">
+              across {r.open_invoice_count} unpaid bill{r.open_invoice_count === 1 ? "" : "s"}, as of now
             </p>
+            <dl className="tabular mt-3 space-y-1 rounded-2xl bg-white/12 px-3 py-2.5 text-[13px]" aria-label={`How it moved ${dayWord}`}>
+              <Move label={isToday ? "Owed this morning" : "Owed at start of that day"} value={inr(r.movement.opening_outstanding_paise)} />
+              <Move label={`New bills ${dayWord}${r.movement.new_invoice_count ? ` (${r.movement.new_invoice_count})` : ""}`} value={`+ ${inr(r.movement.new_invoices_paise)}`} />
+              <Move label="Verified payments" value={`− ${inr(r.movement.verified_applied_paise)}`} />
+              <div className="flex justify-between gap-3 border-t border-white/25 pt-1 font-bold">
+                <dt>{isToday ? "Still owed now" : "Owed at end of that day"}</dt>
+                <dd>{inr(r.movement.closing_outstanding_paise)}</dd>
+              </div>
+            </dl>
+            <p className="mt-1.5 text-xs text-white/80">A new bill adds to this. Only a verified payment brings it down. Promises change nothing.</p>
           </section>
 
           <section className="grid grid-cols-2 gap-2" aria-label={`Money ${dayWord}`}>
@@ -210,6 +221,15 @@ export default function HomePage() {
           </details>
         </>
       )}
+    </div>
+  );
+}
+
+function Move({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-white/85">{label}</dt>
+      <dd className="font-semibold">{value}</dd>
     </div>
   );
 }

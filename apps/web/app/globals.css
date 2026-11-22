@@ -34,7 +34,8 @@ body {
 .stage {
   display: flex;
   min-height: 100dvh;
-  align-items: center;
+  /* Phones: pin to the top so the app sits in the visible area above an open keyboard. */
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -53,6 +54,7 @@ body {
 
 @media (min-width: 520px) {
   .stage {
+    align-items: center;
     padding: 20px;
   }
   .phone {

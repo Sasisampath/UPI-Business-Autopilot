@@ -24,6 +24,8 @@ export default function BillsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { data, error, loading, reload } = useApi<Draft[]>("/v1/invoice-drafts");
   const act = useAction();
+  const integrations = useApi<{ items: { key: string; label: string }[] }>("/v1/integrations");
+  const liveReading = integrations.data?.items.find((i) => i.key === "extraction")?.label === "live";
   const canWrite = me.role !== "viewer";
 
   async function ingest(file: File, source: "web" | "whatsapp_demo") {
@@ -72,7 +74,7 @@ export default function BillsPage() {
                 </Button>
               </div>
               <p className="mt-2 text-xs leading-snug text-muted">Photo or PDF, up to 10 MB. The sample is a made-up handwritten bill, delivered like a WhatsApp photo.</p>
-              {act.busy && <Loading label="Reading the bill. This takes a moment" />}
+              {act.busy && <Loading label={liveReading ? "Gemini is reading the bill. This takes a moment" : "Preparing the sample draft"} />}
               {act.error && (
                 <div className="mt-3">
                   <ErrorBox message={act.error} />
@@ -95,7 +97,7 @@ export default function BillsPage() {
                     <div className="min-w-0">
                       <p className="truncate text-[15px] font-semibold">{d.payload.customer_name ?? "Buyer name not read"}</p>
                       <p className="text-xs text-muted">
-                        {fmtDateTime(d.created_at)} · {d.upload.source === "web" ? "Uploaded" : "From WhatsApp"}
+                        {fmtDateTime(d.created_at)} · {d.upload.source === "web" ? "Uploaded" : "From WhatsApp"} · {d.extraction_source === "gemini" ? "read by Gemini" : d.extraction_source === "simulated" ? "sample draft" : "typed by hand"}
                         {d.status === "needs_review" && blocking > 0 && <span className="font-semibold text-rose-700"> · {blocking} to fix</span>}
                       </p>
                     </div>
@@ -109,7 +111,13 @@ export default function BillsPage() {
             })}
           </ul>
         </Card>
-        <Notice tone="blue">The AI only prepares a draft. The app re-adds every line itself, and you fix anything missing before it becomes an invoice.</Notice>
+        {integrations.data && !liveReading ? (
+          <Notice>
+            <strong>Bill reading is simulated here.</strong> No Gemini key is set, so any photo you add gets the same fixed sample draft. The photo is stored but not read. You still check and approve before it becomes an invoice.
+          </Notice>
+        ) : (
+          <Notice tone="blue">Gemini only prepares a draft. The app re-adds every line itself, and you fix anything missing before it becomes an invoice.</Notice>
+        )}
       </div>
     </>
   );

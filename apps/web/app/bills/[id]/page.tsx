@@ -170,7 +170,7 @@ export default function ReviewBillPage() {
       <div className="space-y-4">
         {draft.extraction_source === "simulated" && (
           <Notice>
-            <strong>Sample reading.</strong> No AI key is set up, so this draft is a fixed sample and was not read from your photo. With a Gemini key the photo itself is read.
+            <strong>Simulated reading.</strong> No Gemini key is set, so this draft is a fixed sample. It was not read from this photo, and no AI looked at it. With a key, Gemini reads the photo itself.
           </Notice>
         )}
         {draft.extraction_error && <Notice tone="amber">{draft.extraction_error}</Notice>}
@@ -196,7 +196,7 @@ export default function ReviewBillPage() {
           </Card>
 
           <div className="space-y-4">
-            <Card title="Draft details">
+            <Card title={draft.extraction_source === "gemini" ? "Draft read by Gemini" : draft.extraction_source === "simulated" ? "Sample draft (not read from photo)" : "Draft typed by hand"}>
               <fieldset disabled={!editable} className="space-y-3">
                 <div className="grid gap-3">
                   <Field label="Buyer as written on the bill" error={fieldError("customer_name")}>
@@ -219,7 +219,9 @@ export default function ReviewBillPage() {
                   <p className="mb-1 text-sm font-medium">Items</p>
                   <div className="space-y-2">
                     {form.items.map((it, i) => {
-                      const calc = dirty ? undefined : (lineCalc[i] ?? undefined);
+                      // While edits are unsaved, show a local preview for whole-number quantities; the server re-adds on save.
+                      const local = it.quantity !== null && /^\d+$/.test(it.quantity) && it.unit_price_paise !== null ? Number(it.quantity) * it.unit_price_paise : undefined;
+                      const calc = dirty ? local : (lineCalc[i] ?? undefined);
                       const conflict = issues.find((x) => x.field.startsWith(`items[${i}]`) && x.severity === "blocking");
                       return (
                         <div key={i} className={`rounded-lg border p-2 ${conflict ? "border-amber-500 bg-amber-50/60" : "border-line"}`}>
@@ -234,10 +236,10 @@ export default function ReviewBillPage() {
                             </div>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span className={conflict ? "font-medium text-amber-900" : "text-muted"}>{conflict ? conflict.message : dirty ? "Save to re-add" : calc !== undefined ? `Qty × price = ${inr(calc)}` : ""}</span>
+                            <span className={conflict ? "font-medium text-amber-900" : "text-muted"}>{conflict && !dirty ? conflict.message : calc !== undefined ? `Qty × rate = ${inr(calc)}` : dirty ? "Save to re-add" : ""}</span>
                             {editable && (
                               <span className="-my-2 flex">
-                                {conflict?.code === "line_total_conflict" && calc !== undefined && (
+                                {conflict?.code === "line_total_conflict" && calc !== undefined && it.line_total_paise !== calc && (
                                   <TextAction onClick={() => updateItem(i, { line_total_paise: calc })}>Use {inr(calc)}</TextAction>
                                 )}
                                 <TextAction tone="danger" onClick={() => update({ items: form.items.filter((_, j) => j !== i) }, "items")}>Remove</TextAction>

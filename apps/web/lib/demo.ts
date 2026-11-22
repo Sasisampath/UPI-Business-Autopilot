@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { post, setToken } from "./api";
+import { api, cancelAllRequests, pauseRequests } from "./api";
 
 /** Things the guided demo waits for. They are emitted only after the real API call succeeded. */
 export type DemoEvent = "draft-created" | "invoice-approved" | "promise-saved" | "payment-verified";
@@ -51,12 +51,18 @@ export function useGuide(): GuideState {
 
 export const DEMO_OWNER = "usr_owner_a";
 
-/** Restore the seeded sample data (owner only), sign back in and reload on Home.
- *  Same starting numbers every time, so the walkthrough is repeatable. */
-export async function resetDemo(userId: string, startGuide: boolean) {
-  await post("/v1/demo/reset");
-  const login = await post<{ token: string }>("/v1/auth/demo-login", { user_id: userId });
+/** Restore the seeded sample data (owner only) and reload on Home. Same starting numbers every time.
+ *  In-flight requests are cancelled first and new ones are held until the reload, so nothing stale
+ *  can land on the fresh data. The server keeps sign-in sessions across a reset, so no re-login. */
+export async function resetDemo(startGuide: boolean) {
+  cancelAllRequests();
+  pauseRequests(true);
+  try {
+    await api("/v1/demo/reset", { method: "POST", json: {}, duringReset: true });
+  } catch (e) {
+    pauseRequests(false);
+    throw e;
+  }
   writeGuide(startGuide ? { active: true, step: 0, collapsed: false, draftId: undefined, invoiceId: undefined } : { ...OFF });
-  setToken(login.token);
   window.location.assign("/");
 }

@@ -18,7 +18,7 @@ export default function MorePage() {
   const guide = useGuide();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const reset = (withGuide: boolean) => (setBusy(withGuide ? "guide" : "reset"), setError(null), resetDemo(me.user_id, withGuide).catch((e) => (setError(e.message), setBusy(null))));
+  const reset = (withGuide: boolean) => (setBusy(withGuide ? "guide" : "reset"), setError(null), resetDemo(withGuide).catch((e) => (setError(e.message), setBusy(null))));
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 rounded-2xl border border-line bg-white p-4">

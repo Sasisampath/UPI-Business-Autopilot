@@ -11,15 +11,36 @@ export function getToken(): string | null {
   }
 }
 
-export function setToken(token: string | null) {
+export function setToken(token: string | null, silent = false) {
   try {
     if (token) window.localStorage.setItem(TOKEN_KEY, token);
     else window.localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* storage unavailable: session lasts until reload */
   }
-  window.dispatchEvent(new Event("auth-changed"));
+  if (!silent) window.dispatchEvent(new Event("auth-changed"));
 }
+
+// ---- request lifecycle -------------------------------------------------------------------------
+// Every request belongs to an "epoch". cancelAllRequests() aborts whatever is in flight and starts a
+// new epoch; a response that comes back for an older epoch is dropped before it can touch auth or
+// screen state. pauseRequests() additionally holds back new requests (used while sample data resets).
+let epoch = 0;
+let paused = false;
+const inflight = new Set<AbortController>();
+
+export function cancelAllRequests() {
+  epoch += 1;
+  inflight.forEach((c) => c.abort());
+  inflight.clear();
+}
+
+export function pauseRequests(on: boolean) {
+  paused = on;
+}
+
+/** status -1 = cancelled or superseded; callers ignore it. */
+export const CANCELLED = -1;
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public issues: Issue[] = []) {
@@ -46,7 +67,11 @@ function describe(detail: unknown, status: number): { message: string; issues: I
   return { message: status >= 500 ? "The server could not be reached or failed. Is the API running?" : `Request failed (${status})`, issues: [] };
 }
 
-export async function api<T = any>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+export async function api<T = any>(path: string, init: RequestInit & { json?: unknown; duringReset?: boolean } = {}): Promise<T> {
+  if (paused && !init.duringReset) throw new ApiError(CANCELLED, "Request held while sample data resets");
+  const mine = epoch;
+  const controller = new AbortController();
+  inflight.add(controller);
   const headers = new Headers(init.headers);
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -57,11 +82,15 @@ export async function api<T = any>(path: string, init: RequestInit & { json?: un
   }
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, { ...init, headers, body });
+    res = await fetch(`/api${path}`, { ...init, headers, body, signal: controller.signal });
   } catch {
+    if (controller.signal.aborted) throw new ApiError(CANCELLED, "Request cancelled");
     throw new ApiError(0, "Cannot reach the server. Check that the API is running.");
+  } finally {
+    inflight.delete(controller);
   }
-  // Only sign out if the rejected token is still the current one (a reset may have replaced it meanwhile).
+  if (mine !== epoch) throw new ApiError(CANCELLED, "Response superseded");
+  // Sign out only if the rejected token is still the one in use.
   if (res.status === 401 && token && token === getToken()) setToken(null);
   if (!res.ok) {
     const data = await res.json().catch(() => null);
@@ -85,7 +114,7 @@ export function useApi<T = any>(path: string | null) {
     setLoading(true);
     api<T>(path)
       .then((d) => live && (setData(d), setError(null)))
-      .catch((e: Error) => live && setError(e.message))
+      .catch((e: ApiError) => live && e.status !== CANCELLED && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => {
       live = false;

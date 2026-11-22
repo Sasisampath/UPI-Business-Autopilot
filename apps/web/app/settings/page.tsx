@@ -56,7 +56,7 @@ export default function SettingsPage() {
               <Button
                 variant="danger"
                 busy={act.busy === "reset"}
-                onClick={() => window.confirm("Erase everything and restore the sample data for all demo merchants?") && act.run("reset", () => resetDemo(me.user_id, false))}
+                onClick={() => window.confirm("Erase everything and restore the sample data for all demo merchants?") && act.run("reset", () => resetDemo(false))}
               >
                 Reset sample data
               </Button>

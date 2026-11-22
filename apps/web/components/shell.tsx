@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
-import { api, getToken, post, setToken } from "@/lib/api";
+import { CANCELLED, api, getToken, post, setToken } from "@/lib/api";
 import { DEMO_OWNER, resetDemo } from "@/lib/demo";
 import { GuideBar } from "./guide";
 import { Avatar, Badge, Button, DemoModeContext, ErrorBox, Loading } from "./ui";
@@ -38,14 +38,19 @@ function Login({ onDone }: { onDone: () => void }) {
     api("/v1/auth/demo-users").then(setUsers).catch((e) => setError(e.message));
   };
   useEffect(load, []);
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState("");
+  useEffect(() => {
+    api("/v1/auth/demo-config").then((c) => setNeedsCode(!!c.access_code_required)).catch(() => {});
+  }, []);
   const [starting, setStarting] = useState(false);
   const guided = async () => {
     setStarting(true);
     setError(null);
     try {
-      const r = await post<{ token: string }>("/v1/auth/demo-login", { user_id: DEMO_OWNER });
-      setToken(r.token);
-      await resetDemo(DEMO_OWNER, true);
+      const r = await post<{ token: string }>("/v1/auth/demo-login", { user_id: DEMO_OWNER, access_code: code || null });
+      setToken(r.token, true);
+      await resetDemo(true);
     } catch (e) {
       setError((e as Error).message);
       setStarting(false);
@@ -59,6 +64,12 @@ function Login({ onDone }: { onDone: () => void }) {
         <p className="mt-2 text-[15px] leading-snug text-white/85">Know who owes, who promised, and who has really paid.</p>
       </div>
       <div className="-mt-5 flex-1 rounded-t-3xl bg-canvas px-4 pt-5">
+        {needsCode && (
+          <label className="mb-4 block text-sm">
+            <span className="mb-1 block font-semibold">Demo access code</span>
+            <input className="min-h-11 w-full rounded-xl border border-line px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" autoCapitalize="none" placeholder="Shared by the presenter" />
+          </label>
+        )}
         {!!users?.length && (
           <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
             <p className="text-base font-bold text-amber-950">New here? Take the 2-minute tour</p>
@@ -80,7 +91,7 @@ function Login({ onDone }: { onDone: () => void }) {
               <button
                 className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white px-3 py-3 text-left active:bg-brand-soft"
                 onClick={() =>
-                  post("/v1/auth/demo-login", { user_id: u.user_id })
+                  post("/v1/auth/demo-login", { user_id: u.user_id, access_code: code || null })
                     .then((r) => (setToken(r.token), onDone()))
                     .catch((e) => setError(e.message))
                 }
@@ -111,7 +122,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     if (!getToken()) return setState("anon");
     api<Me>("/v1/me")
       .then((m) => (setMe(m), setError(null), setState("ready")))
-      .catch((e) => (getToken() ? setError(e.message) : setState("anon")));
+      .catch((e) => e.status !== CANCELLED && (getToken() ? setError(e.message) : setState("anon")));
   }
   useEffect(() => {
     check();
