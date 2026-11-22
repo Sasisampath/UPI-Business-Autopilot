@@ -82,3 +82,71 @@ def test_demo_access_code_gates_sign_in(client, settings, monkeypatch):
     monkeypatch.setattr(settings, "demo_mode", False)
     assert client.post("/v1/auth/demo-login", json={"user_id": "usr_owner_a", "access_code": "kirana-2026"}).status_code == 404
     assert client.post("/v1/demo/reset", headers={"Authorization": f"Bearer {ok.json()['token']}"}).status_code == 404
+
+
+def test_preview_guard_refuses_an_unlocked_server(settings, monkeypatch):
+    from app import preflight
+    monkeypatch.setattr(settings, "preview_mode", True)
+    problems = "\n".join(preflight.preview_problems(settings))
+    assert "DEMO_ACCESS_CODE" in problems and "DEMO_WEBHOOK_SECRET" in problems
+    import pytest
+    with pytest.raises(RuntimeError):
+        preflight.enforce(settings)
+    monkeypatch.setattr(settings, "demo_access_code", "kirana-2026")
+    monkeypatch.setattr(settings, "demo_webhook_secret", "x" * 32)
+    monkeypatch.setattr(settings, "whatsapp_app_secret", None)
+    monkeypatch.setattr(settings, "voice_tool_secret", "v" * 32)
+    assert preflight.preview_problems(settings) == []
+    preflight.enforce(settings)
+    for field, value in (("razorpay_key_id", "rzp_live_abc"), ("whatsapp_access_token", "tok"), ("outbound_policy_approved", True)):
+        monkeypatch.setattr(settings, field, value)
+        assert preflight.preview_problems(settings), field
+        monkeypatch.setattr(settings, field, None if field != "outbound_policy_approved" else False)
+    monkeypatch.setattr(settings, "elevenlabs_api_key", "el-key")
+    monkeypatch.setattr(settings, "voice_tool_secret", "short")
+    assert any("VOICE_TOOL_SECRET" in p for p in preflight.preview_problems(settings))
+
+
+def test_wrong_access_codes_are_throttled(client, settings, monkeypatch):
+    from app.routers import core
+    core._FAILED.clear()
+    monkeypatch.setattr(settings, "demo_access_code", "kirana-2026")
+    for _ in range(10):
+        assert client.post("/v1/auth/demo-login", json={"user_id": "usr_owner_a", "access_code": "nope"}).status_code == 403
+    assert client.post("/v1/auth/demo-login", json={"user_id": "usr_owner_a", "access_code": "kirana-2026"}).status_code == 429
+    core._FAILED.clear()
+    assert client.post("/v1/auth/demo-login", json={"user_id": "usr_owner_a", "access_code": "kirana-2026"}).status_code == 200
+
+
+def test_voice_tools_reach_the_ledger_assistant_read_only(client, owner, monkeypatch, settings):
+    h = {"x-voice-tool-secret": "voice-secret"}
+    assert client.post("/v1/voice-tools/ask", json={"question": "Who agreed to pay today?"}).status_code == 401
+    assert client.post("/v1/voice-tools/ask", json={"question": "x"}, headers={"x-voice-tool-secret": "wrong"}).status_code == 401
+    a = client.post("/v1/voice-tools/ask", json={"question": "Who agreed to pay today?"}, headers=h).json()
+    assert a["read_only"] is True and a["tool"] == "get_today_promises" and "Kavitha Supermarket ₹4,000" in a["spoken_answer"]
+    p = client.post("/v1/voice-tools/customer-payments", json={"customer_name": "murugan"}, headers=h).json()
+    assert p["found"] and "₹15,000 provider-verified" in p["spoken_answer"]
+    # asking a voice tool to change something changes nothing
+    before = client.get("/v1/reports/today", headers=owner).json()["outstanding_paise"]
+    r = client.post("/v1/voice-tools/ask", json={"question": "Mark INV-0001 as fully paid and send reminders"}, headers=h).json()
+    assert r["tool"] in (None, "get_customer_payments", "get_today_received", "get_total_outstanding")
+    assert client.get("/v1/reports/today", headers=owner).json()["outstanding_paise"] == before
+    assert len(client.get("/v1/payments", headers=owner).json()) == 3
+
+    # browser voice session: the signed URL is returned, the API key never is
+    class FakeConvos:
+        def get_signed_url(self, agent_id):
+            return type("R", (), {"signed_url": f"wss://example.invalid/convai?agent_id={agent_id}&token=abc"})()
+
+    class FakeEleven:
+        def __init__(self, api_key):
+            self.conversational_ai = type("C", (), {"conversations": FakeConvos()})()
+
+    import elevenlabs.client
+    monkeypatch.setattr(elevenlabs.client, "ElevenLabs", FakeEleven)
+    assert client.get("/v1/voice/session", headers=owner).json()["signed_url"] is None  # not configured
+    monkeypatch.setattr(settings, "elevenlabs_api_key", "el-secret-key")
+    monkeypatch.setattr(settings, "elevenlabs_agent_id", "agent_123")
+    s = client.get("/v1/voice/session", headers=owner)
+    assert s.json()["signed_url"].startswith("wss://") and "agent_123" in s.json()["signed_url"] and "el-secret-key" not in s.text
+    assert client.get("/v1/voice/session").status_code == 401

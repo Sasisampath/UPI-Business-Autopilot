@@ -31,6 +31,7 @@ interface Draft {
   status: string;
   extraction_source: string;
   extraction_error: string | null;
+  gemini_available: boolean;
   payload: Payload;
   customer_id: string | null;
   invoice_id: string | null;
@@ -152,6 +153,7 @@ export default function ReviewBillPage() {
     return d;
   }
   saveRef.current = save;
+  const reread = (mode: "gemini" | "simulated") => act.run("reread", async () => (await post(`/v1/invoice-drafts/${id}/re-extract`, { mode }), reload()));
   async function approve() {
     try {
       if (dirty) await save();
@@ -173,7 +175,20 @@ export default function ReviewBillPage() {
             <strong>Simulated reading.</strong> No Gemini key is set, so this draft is a fixed sample. It was not read from this photo, and no AI looked at it. With a key, Gemini reads the photo itself.
           </Notice>
         )}
-        {draft.extraction_error && <Notice tone="amber">{draft.extraction_error}</Notice>}
+        {draft.extraction_error && (
+          <Notice tone="amber">
+            <strong>The bill was not read.</strong> {draft.extraction_error}
+            {editable && (
+              <span className="mt-1 flex flex-wrap">
+                {draft.gemini_available && <TextAction disabled={!!act.busy} onClick={() => reread("gemini")}>Try reading again</TextAction>}
+                <TextAction tone="muted" disabled={!!act.busy} onClick={() => reread("simulated")}>Use the simulated sample instead</TextAction>
+              </span>
+            )}
+          </Notice>
+        )}
+        {draft.extraction_source === "gemini" && editable && (
+          <TextAction tone="muted" className="-my-2" disabled={!!act.busy} onClick={() => reread("simulated")}>Use the simulated sample instead</TextAction>
+        )}
         {draft.status === "approved" && draft.invoice_id && (
           <Notice tone="blue">
             Approved. <Link className="font-medium underline" href={`/invoices/${draft.invoice_id}`}>Open the invoice</Link>

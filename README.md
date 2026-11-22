@@ -49,10 +49,10 @@ Payments, More (Customers, Invoices, Assistant, Settings).
 cd services/api && pytest
 ```
 
-30 tests cover: the ₹20,000 → ₹5,000 → ₹10,000 → ₹5,000-remaining → closed scenario, duplicate and
+53 tests cover: the ₹20,000 → ₹5,000 → ₹10,000 → ₹5,000-remaining → closed scenario, duplicate and
 out-of-order webhooks, forged/tampered signatures, overpayment, over-allocation, unverified
 receipts, disputes and refunds, multi-tenant isolation, role checks, upload → review → approve,
-the day-movement breakdown, reset access and session survival, the demo access code, promise parsing ("₹3,000 on Friday, ₹2,000 on Monday" → two promises, zero receipts), the daily
+Gemini reading with a stand-in provider (conversion, flags, failures, explicit fallback), the preview lock-down guard, voice tools, the day-movement breakdown, reset access and session survival, the demo access code, promise parsing ("₹3,000 on Friday, ₹2,000 on Monday" → two promises, zero receipts), the daily
 report, the assistant, outbound gating, the WhatsApp webhook and migration/model parity.
 To run them on PostgreSQL: `TEST_DATABASE_URL=postgresql+psycopg://... pytest` (after
 `alembic upgrade head` against that database).
@@ -88,16 +88,16 @@ Home shows how the number moved, so the rise is expected, not a bug:
 
 The ₹2,500 promise recorded in step 6 changes none of these.
 
-Sharing a demo link: see [`docs/PREVIEW.md`](docs/PREVIEW.md). Screenshots: `docs/screenshots/`.
+Guides: [`docs/GEMINI.md`](docs/GEMINI.md) (real bill reading), [`docs/ELEVENLABS_SETUP.md`](docs/ELEVENLABS_SETUP.md) (voice), [`docs/PREVIEW.md`](docs/PREVIEW.md) (shared preview hosting). Screenshots: `docs/screenshots/`.
 
 ## What is live, test mode or simulated
 
 | Integration | Without keys | With keys | Verified in this build |
 |---|---|---|---|
 | Payments | Demo provider, **simulated**, signed webhooks | Razorpay **test mode** (`rzp_test_` only) | Demo: yes. Razorpay: code path only, never run against an account |
-| Bill extraction | **Simulated** fixed sample (does not read your file) | Gemini via `google-genai` | Simulated: yes. Gemini: not run |
+| Bill extraction | **Simulated** fixed sample (does not read your file), labelled | Gemini reads the actual photo/PDF; amounts converted and re-added in code | Simulated: yes. Gemini: request building, conversion and every failure path tested with a stand-in; **no real bill read yet** (no key) |
 | Assistant | Rule-based routing over read-only tools | Gemini chooses the tool; numbers still come from the ledger | Rules: yes. Gemini: not run |
-| Voice | Browser speech over the text assistant | ElevenLabs agent via signed URL + `/v1/voice-tools/*` | Browser: yes. ElevenLabs: not run |
+| Voice | Browser speech over the text assistant | ElevenLabs agent via signed URL + read-only `/v1/voice-tools/*` | Browser: yes. ElevenLabs: tools and signed-URL flow tested with a stand-in; **not connected to a real account** |
 | WhatsApp inbound | Inbox simulator | Meta Cloud API webhook (signature-checked) | Webhook parsing tested with signed fixtures; media download not run |
 | WhatsApp outbound / AI calls | **Not built** | **Not built** | Gate tested; no send code exists |
 

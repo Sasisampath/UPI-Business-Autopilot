@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # Gemini extraction / assistant routing (optional).
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_seconds: int = 60
+    # Cap on real Gemini reads per merchant per day (protects a shared demo's quota). 0 = no cap.
+    gemini_daily_limit: int = 200
+
+    # Shared-preview guard: when true the server refuses to start unless it is locked down
+    # (access code set, non-default secrets, no live payment or messaging credentials).
+    preview_mode: bool = False
 
     # Razorpay — test mode only in this MVP.
     razorpay_key_id: str | None = None

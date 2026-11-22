@@ -1,60 +1,66 @@
-# Sharing a demo link safely
+# Shared demo preview: hosting requirements
 
-Nothing here has been deployed. These are the steps to run a shareable demo yourself. They were
-written against the code in this branch; the tunnel/hosting commands themselves were not run.
+**Nothing has been deployed.** This is the configuration proposed for your approval.
 
-## What must be true before you share a link
+## Shape
+One service, one HTTPS URL. The web app listens on `$PORT`; the API runs inside the same service on
+`127.0.0.1:8000` and is reached only through the web app's `/api/*` proxy, so it is never directly
+on the internet. Start command: `infra/start-preview.sh` (or the root `Dockerfile`).
 
-| Setting | Value | Why |
+| Requirement | Value |
+|---|---|
+| Instances | **Exactly 1** (the sample database and the wrong-code throttle live in that instance) |
+| Memory / CPU | 1 GB / 1 vCPU is ample |
+| HTTPS | Terminated by the host in front of `$PORT` |
+| Disk | Ephemeral is fine; data is fictional and re-seeded on start |
+| Outbound network | `generativelanguage.googleapis.com` (Gemini) and `api.elevenlabs.io`, only if those keys are set |
+| Runtime | Node 22 + Python 3.11+ (the Dockerfile provides both) |
+
+Any host that runs one container or one start command with HTTPS works (for example Cloud Run with
+max instances 1, Render, Fly.io, or a small VM behind Caddy). Tell me which one and I will prepare
+its exact config for you to approve.
+
+## Lock-down is enforced, not just documented
+`infra/start-preview.sh` sets `PREVIEW_MODE=true`, and the server **refuses to start** unless:
+
+| Setting | Required | Why |
 |---|---|---|
-| `DEMO_MODE` | `true` | Enables the demo sign-in, simulator and reset. |
-| `DEMO_ACCESS_CODE` | a code you choose | Demo sign-in has no passwords. Without a code, anyone with the link can sign in as the owner and reset the sample data. With it, sign-in is refused unless the code is typed. |
-| `DEMO_WEBHOOK_SECRET` | a long random string | The default is public in this repo; anyone who knows it could post simulated payments. |
-| Real keys (`RAZORPAY_*`, `WHATSAPP_*`, `ELEVENLABS_*`) | leave empty | A shared demo should not be able to reach real accounts. `GEMINI_API_KEY` is optional: without it bill reading is simulated and labelled so. |
-| `OUTBOUND_POLICY_APPROVED` | `false` | Keeps customer messaging off. |
-| Data | sample data only | The demo database is not for real customer data. |
+| `DEMO_ACCESS_CODE` | 8+ characters | Demo sign-in has no passwords; the code is the gate. 10 wrong codes from one address lock it for 5 minutes. |
+| `DEMO_WEBHOOK_SECRET` | random, 24+ characters | The repo default is public. |
+| `RAZORPAY_*` | empty | Payments stay simulated; no real money can move. |
+| `WHATSAPP_*` | empty | No real WhatsApp number is connected. |
+| `OUTBOUND_POLICY_APPROVED` | false | Customer messaging stays off. There is no outbound calling code. |
+| `VOICE_TOOL_SECRET` | random, 24+ characters, if voice is configured | Protects the read-only voice tools. |
 
-Who can reset: only a signed-in **owner**, and only while `DEMO_MODE=true` (staff and view-only get
-403; signed-out gets 401; with `DEMO_MODE=false` the endpoint does not exist). Reset restores the
-seeded data and keeps everyone signed in.
+Optional: `GEMINI_API_KEY` (real bill reading), `ELEVENLABS_API_KEY` + `ELEVENLABS_AGENT_ID` +
+`VOICE_TOOL_MERCHANT_ID` (voice). Set all secrets in the host's secret store, never in the repo.
 
-## Option A: from your laptop with a tunnel (quickest)
+Check a configuration without starting anything: `cd services/api && python -m app.preflight`.
 
-Only the web app is exposed. The API listens on `127.0.0.1` and is reached through the web app's
-`/api/*` proxy, so it is never directly on the internet.
+Reset is owner-only and exists only in demo mode. Responses carry `X-Frame-Options: DENY`,
+`nosniff`, `no-referrer` and `noindex`.
 
+## Run it locally the same way
 ```bash
-cd services/api
-export DEMO_MODE=true DEMO_ACCESS_CODE='choose-a-code' DEMO_WEBHOOK_SECRET="$(openssl rand -hex 32)"
-python -m app.seed
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd apps/web && npm ci && npm run build && cd ../..
+DEMO_ACCESS_CODE='choose-a-code' DEMO_WEBHOOK_SECRET="$(openssl rand -hex 32)" PORT=3000 infra/start-preview.sh
 ```
+To share from a laptop, put a tunnel you trust (Cloudflare Tunnel, ngrok) in front of port 3000.
 
-```bash
-cd apps/web
-npm run build
-npm run start -- -p 3000
-```
+## Shared-dataset limits (tell your audience)
+- **Everyone with the link and code uses the same sample data.** Two people running the guided
+  demo at once will see each other's bills, promises and payments, and one person's reset resets it for all.
+- Use fictional data only. Uploaded files are stored unencrypted on the instance's disk and are
+  lost when it restarts; with a Gemini key, uploaded files are sent to Google to be read.
+- A restart or redeploy restores the seeded data and signs everyone out.
+- There is no per-user rate limit beyond the access-code throttle and the daily Gemini cap.
 
-Then expose port 3000 with a tunnel you trust (for example Cloudflare Tunnel or ngrok) and share
-that HTTPS URL plus the access code. Stop the tunnel when the session ends.
-
-## Option B: one small server
-
-Run the same two processes on one VM behind an HTTPS reverse proxy (Caddy or nginx) that forwards
-everything to the web app on port 3000. Keep port 8000 closed to the internet. Set the same
-environment variables as above. For PostgreSQL use `infra/docker-compose.yml` and `DATABASE_URL`.
-
-If the web app and API must run on different hosts, set `API_URL` for the web app at build and
-start time, and restrict the API host to accept traffic only from the web host.
+## What was verified
+- Locally: the start script refuses an unlocked config; with a locked config, sign-in without the
+  code is refused, the app works through the single origin, security headers are present, and the
+  API is bound to loopback.
+- Not verified: the Dockerfile has **not been built** (no Docker daemon was available), and no
+  hosting platform or real HTTPS endpoint has been tried.
 
 ## Before each judging session
-
-1. Sign in as the owner and tap **More → Reset sample data only** (or start the guided demo, which resets first).
-2. Check Home shows ₹25,900 owed.
-
-## Known limits of a shared demo
-
-- All visitors share one dataset; two people running the guide at once will see each other's changes.
-- Uploaded files are stored unencrypted on the server's disk. There is no rate limiting.
-- `/api/v1/webhooks/*` is reachable through the proxy; it accepts only correctly signed messages.
+Sign in as the owner → More → **Reset sample data only**. Home should show ₹25,900 owed.
