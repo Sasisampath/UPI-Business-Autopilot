@@ -112,7 +112,7 @@ export function Assistant() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="mx-auto mb-3 rounded-lg bg-amber-100/90 px-3 py-1.5 text-center text-[11px] leading-snug text-amber-950 shadow-sm">
+      <div className="mx-auto mb-3 rounded-lg bg-amber-100/90 px-3 py-1.5 text-center text-xs leading-snug text-amber-950 shadow-sm">
         Read-only helper. It reads your ledger and cannot change anything. Every number comes from recorded entries.
       </div>
 
@@ -124,10 +124,10 @@ export function Assistant() {
             {t.answer ? (
               <Bubble side="in">
                 {t.answer.answer}
-                <details className="mt-1.5 text-[11px] text-muted">
-                  <summary className="cursor-pointer font-semibold text-brand">Show proof</summary>
+                <details className="mt-1.5 text-xs text-muted">
+                  <summary className="flex min-h-9 cursor-pointer items-center font-semibold text-brand">Show proof</summary>
                   <p className="mt-1">{t.answer.tool ? `Ledger tool: ${t.answer.tool}` : "No ledger tool matched"} · routed by {t.answer.routed_by}</p>
-                  <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-stone-50 p-2 text-[10px] leading-snug text-ink">{JSON.stringify(t.answer.evidence, null, 2)}</pre>
+                  <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-stone-50 p-2 text-xs leading-snug text-ink">{JSON.stringify(t.answer.evidence, null, 2)}</pre>
                 </details>
               </Bubble>
             ) : (
@@ -140,10 +140,10 @@ export function Assistant() {
         <div ref={endRef} />
       </div>
 
-      <div className="sticky bottom-0 -mx-4 -mb-6 mt-3 space-y-2 bg-[#efe8da]/95 px-3 pb-3 pt-2 backdrop-blur">
+      <div className="sticky bottom-0 -mx-4 -mb-6 mt-3 space-y-1.5 border-t border-line/70 bg-[#efe8da]/95 px-3 pb-2 pt-2 backdrop-blur">
         <div className="scroll-area flex gap-1.5 overflow-x-auto">
           {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => ask(s)} className="shrink-0 rounded-full border border-brand/25 bg-white px-3 py-1.5 text-xs font-semibold text-brand active:bg-brand-soft">
+            <button key={s} onClick={() => ask(s)} className="min-h-11 shrink-0 rounded-full border border-brand/25 bg-white px-3.5 text-[13px] font-semibold text-brand active:bg-brand-soft">
               {s}
             </button>
           ))}
@@ -155,23 +155,23 @@ export function Assistant() {
             ask(question);
           }}
         >
-          <input className="min-h-11 flex-1 rounded-full border border-line px-4 text-[15px] outline-none focus:border-brand" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask in plain words" aria-label="Question" maxLength={500} />
+          <input className="min-h-11 min-w-0 flex-1 rounded-full border border-line px-4 text-base outline-none focus:border-brand" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask in plain words" aria-label="Question" maxLength={500} />
           {question.trim() || !canListen ? (
             <RoundButton label="Send" disabled={busy || !question.trim()} d="M4 12l16-8-6 16-2.5-6.5L4 12z" />
           ) : (
             <RoundButton label={listening ? "Listening" : "Speak your question"} type="button" onClick={listen} pulse={listening} d="M12 4a3 3 0 013 3v4a3 3 0 01-6 0V7a3 3 0 013-3zm-6 7a6 6 0 0012 0M12 17v3" />
           )}
         </form>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 px-1 text-[11px] text-muted">
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={speak} onChange={(e) => setSpeak(e.target.checked)} /> Read answers aloud
+        <div className="flex flex-wrap items-center justify-between gap-x-3 px-1 text-xs text-muted">
+          <label className="flex min-h-9 items-center gap-2">
+            <input type="checkbox" className="h-4 w-4 accent-[#0a6b4d]" checked={speak} onChange={(e) => setSpeak(e.target.checked)} /> Read answers aloud
           </label>
           {voice?.signed_url ? (
             <button className="font-semibold text-brand underline" onClick={toggleLive}>
               {live ? `End voice agent (${live.status})` : "Talk to ElevenLabs voice agent"}
             </button>
           ) : (
-            <span>Voice: phone browser speech (demo)</span>
+            <span>Voice uses this phone&apos;s own speech</span>
           )}
         </div>
       </div>

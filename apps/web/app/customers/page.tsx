@@ -52,7 +52,7 @@ export default function CustomersPage() {
                 </span>
                 <span className="text-right">
                   <span className="tabular block text-base font-bold">{inr(c.outstanding_paise)}</span>
-                  <span className="block text-[11px] text-muted">to collect</span>
+                  <span className="block text-xs text-muted">to collect</span>
                 </span>
               </Link>
             </li>

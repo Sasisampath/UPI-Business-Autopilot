@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ManualReceipt, PaymentRow, ProposeRequest, RequestRow } from "@/components/payments";
 import { useMe } from "@/components/shell";
-import { AuditList, Badge, Card, Empty, ErrorBox, Loading, PageHeader, SimTag } from "@/components/ui";
-import { fmtDate, fmtDateTime, inr, useApi } from "@/lib/api";
+import { AuditList, Badge, Card, Empty, ErrorBox, PageHeader, SimNote, SimTag, Skeleton } from "@/components/ui";
+import { fmtDate, fmtDateTime, fmtDay, inr, methodLabel, useApi } from "@/lib/api";
 import type { Audit, Invoice, Payment, PaymentRequest, PromiseRow } from "@/lib/types";
 
 interface Detail extends Invoice {
@@ -23,7 +23,7 @@ export default function InvoicePage() {
   const me = useMe();
   const { data: inv, error, loading, reload } = useApi<Detail>(`/v1/invoices/${id}`);
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !inv) return <Loading label="Opening invoice" />;
+  if (loading && !inv) return <Skeleton rows={4} />;
   if (!inv) return null;
   const canWrite = me.role !== "viewer";
   const pct = Math.round((inv.allocated_paise / Math.max(inv.total_paise, 1)) * 100);
@@ -65,7 +65,8 @@ export default function InvoicePage() {
             })}
             <Step color={inv.due_paise > 0 ? "bg-amber-500" : "bg-emerald-600"} title={inv.due_paise > 0 ? "Remaining due" : "Closed"} right={inr(inv.due_paise)} bold />
           </ol>
-          <p className="mt-3 text-[11px] leading-snug text-muted">Entries are never edited or deleted. Promises and unverified claims do not appear here.</p>
+          <p className="mt-3 text-xs leading-snug text-muted">Only verified money appears here. Entries are never edited or deleted.</p>
+          <SimNote />
         </Card>
 
         <Card title="Send UPI request">
@@ -80,12 +81,12 @@ export default function InvoicePage() {
           {canWrite && inv.due_paise > 0 && <div className="mt-2"><ManualReceipt invoiceId={inv.id} customerId={inv.customer_id} onChange={reload} /></div>}
         </Card>
 
-        <Card title="Customer promises" action={<Link href={`/conversations?customer=${inv.customer_id}`} className="text-sm font-semibold text-brand">Add</Link>}>
+        <Card title="Customer promises" action={<Link href={`/conversations?customer=${inv.customer_id}`} className="-my-2 flex min-h-11 items-center px-2 text-sm font-semibold text-brand">Add</Link>}>
           {inv.promises.length === 0 ? <Empty>The customer has not said when they will pay.</Empty> : (
             <ul className="-my-1 divide-y divide-line">
               {inv.promises.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="flex flex-wrap items-center gap-1.5"><Badge status={p.status} /> {fmtDate(p.promised_date)} · {p.method.toUpperCase()} <SimTag show={p.simulated} /></span>
+                  <span className="flex flex-wrap items-center gap-1.5"><Badge status={p.status} /> {fmtDay(p.promised_date, me.today)} · {methodLabel(p.method)} <SimTag show={p.simulated} /></span>
                   <span className="tabular font-bold">{inr(p.amount_paise)}</span>
                 </li>
               ))}
@@ -107,11 +108,11 @@ export default function InvoicePage() {
             {inv.tax_paise > 0 && <li className="flex justify-between py-2 text-muted"><span>Tax</span><span className="tabular">{inr(inv.tax_paise)}</span></li>}
             <li className="flex justify-between py-2 font-bold"><span>Total</span><span className="tabular">{inr(inv.total_paise)}</span></li>
           </ul>
-          {inv.draft_id && <Link href={`/bills/${inv.draft_id}`} className="mt-2 inline-block text-xs font-semibold text-brand">See the original bill photo</Link>}
+          {inv.draft_id && <Link href={`/bills/${inv.draft_id}`} className="mt-1 flex min-h-11 items-center text-[13px] font-semibold text-brand">See the original bill photo</Link>}
         </Card>
 
         <Card title="History"><AuditList items={inv.audit} /></Card>
-        <Link href={`/customers/${inv.customer_id}`} className="block text-center text-sm font-semibold text-brand">Open {inv.customer_name}</Link>
+        <Link href={`/customers/${inv.customer_id}`} className="flex min-h-11 items-center justify-center text-sm font-semibold text-brand">Open {inv.customer_name}</Link>
       </div>
     </>
   );

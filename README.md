@@ -57,17 +57,24 @@ report, the assistant, outbound gating, the WhatsApp webhook and migration/model
 To run them on PostgreSQL: `TEST_DATABASE_URL=postgresql+psycopg://... pytest` (after
 `alembic upgrade head` against that database).
 
-## Five-minute demo
+## Guided demo for judges
 
-1. **Home** – pending, confirmed received, promised today, unverified claims, collection visits.
-   Tap Ask: "Who agreed to pay today?", "How much did Murugan Stores pay?", "What is my confirmed cash in?"
-2. **Bills → Try a sample WhatsApp bill photo** – the draft flags a wrong line total, a smudged
-   quantity and missing tax. Fix, tick the acknowledgement, approve → invoice.
-3. **Invoices → INV-0001** – ₹20,000, two receipts, ₹5,000 due. Prepare a ₹5,000 UPI request,
-   approve it (owner), "Simulate customer paying" → paid, with the full allocation trail.
-4. **Promises** – tap Receive on "₹3,000 on Friday, ₹2,000 on Monday", confirm → two promises, balance unchanged.
-5. **Payments** – send a duplicate webhook, a forged signature, an unmatched payment, a refund or a
-   dispute; confirm or dispute the seeded screenshot claim.
+On the sign-in screen tap **Try the guided demo** (or Home → **Try the demo**, or More → Guided demo).
+A small guide bar walks through eight steps in the real app:
+
+Home → sample handwritten bill → AI review → approved invoice → part payments → a customer promise →
+verified payment → updated Home.
+
+- The guide only points and waits. Every step is completed by the real action, and all the usual
+  checks still apply (a bill cannot be approved until its numbers add up and warnings are ticked;
+  only an owner can approve a UPI request; only a signed provider message changes a balance).
+- "Fill corrections" types the fixes a merchant would type on the review form. It does not approve anything.
+- Hide or End it at any time; the tabs keep working while it is open.
+- Starting or restarting the guide restores the seeded sample data, so every run begins at
+  ₹25,900 pending and ends at ₹26,200 pending with ₹15,000 received. More → **Reset sample data only**
+  does the same without the guide. Owner role and `DEMO_MODE=true` are required.
+
+Screenshots are in `docs/screenshots/`.
 
 ## What is live, test mode or simulated
 

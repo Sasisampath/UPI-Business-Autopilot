@@ -61,7 +61,8 @@ export async function api<T = any>(path: string, init: RequestInit & { json?: un
   } catch {
     throw new ApiError(0, "Cannot reach the server. Check that the API is running.");
   }
-  if (res.status === 401 && token) setToken(null);
+  // Only sign out if the rejected token is still the current one (a reset may have replaced it meanwhile).
+  if (res.status === 401 && token && token === getToken()) setToken(null);
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     const { message, issues } = describe(data?.detail, res.status);
@@ -121,13 +122,41 @@ export function rupeesText(paise: number | null | undefined): string {
   return `${Math.floor(paise / 100)}${rem ? `.${String(rem).padStart(2, "0")}` : ""}`;
 }
 
-export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso.length === 10 ? `${iso}T00:00:00+05:30` : iso);
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata", weekday: iso.length === 10 ? "short" : undefined });
+const IST = "Asia/Kolkata";
+
+function parts(d: Date, opts: Intl.DateTimeFormatOptions): Record<string, string> {
+  return Object.fromEntries(new Intl.DateTimeFormat("en-IN", { timeZone: IST, ...opts }).formatToParts(d).map((p) => [p.type, p.value]));
 }
 
+function asDate(iso: string): Date {
+  return new Date(iso.length === 10 ? `${iso}T00:00:00+05:30` : iso);
+}
+
+/** "2026-11-22" -> "Sun, 22 Nov 2026" (India order, month as a word so it cannot be misread). */
+export function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const p = parts(asDate(iso), { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  return `${p.weekday}, ${p.day} ${p.month} ${p.year}`;
+}
+
+/** Relative day for promises: "Today", "Tomorrow", "Yesterday", else "Mon, 23 Nov". */
+export function fmtDay(iso: string | null | undefined, today: string): string {
+  if (!iso) return "—";
+  const diff = Math.round((asDate(iso.slice(0, 10)).getTime() - asDate(today).getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  const p = parts(asDate(iso), { weekday: "short", day: "numeric", month: "short" });
+  return `${p.weekday}, ${p.day} ${p.month}`;
+}
+
+/** "22 Nov, 3:00 pm" */
 export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+  const p = parts(new Date(iso), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+  return `${p.day} ${p.month}, ${p.hour}:${p.minute} ${(p.dayPeriod ?? "").toLowerCase()}`;
+}
+
+export function methodLabel(method: string | null | undefined): string {
+  return { upi: "UPI", cash: "Cash", other: "Other", upi_claim: "UPI (claimed)", bank_transfer_claim: "Bank transfer (claimed)" }[method ?? ""] ?? (method ?? "UPI").toUpperCase();
 }

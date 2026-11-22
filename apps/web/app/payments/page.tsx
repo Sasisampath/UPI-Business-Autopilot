@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { PaymentRow, RequestRow } from "@/components/payments";
 import { useMe } from "@/components/shell";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Loading, Notice, PageHeader, Segmented, Sheet, inputCls, useAction } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Field, Notice, PageHeader, Segmented, Sheet, SimNote, Skeleton, TextAction, inputCls, useAction } from "@/components/ui";
 import { fmtDateTime, inr, parseRupees, post, useApi } from "@/lib/api";
 import type { Payment, PaymentRequest } from "@/lib/types";
 
@@ -95,11 +95,12 @@ export default function PaymentsPage() {
         ]}
       />
       {error && <div className="mb-3"><ErrorBox message={error} onRetry={reloadAll} /></div>}
-      {!payments.data && payments.loading && <Loading />}
+      {!payments.data && payments.loading && <Skeleton rows={3} />}
 
       {tab === "money" && payments.data && (
         <Card title="Verified and confirmed">
-          {settled.length === 0 ? <Empty>No verified payments yet.</Empty> : <ul className="-my-1 divide-y divide-line">{settled.map((p) => <PaymentRow key={p.id} p={p} onChange={reloadAll} showCustomer />)}</ul>}
+          {settled.length === 0 ? <Empty>No verified payments yet. They appear here the moment the payment provider confirms them.</Empty> : <ul className="-my-1 divide-y divide-line">{settled.map((p) => <PaymentRow key={p.id} p={p} onChange={reloadAll} showCustomer />)}</ul>}
+          <SimNote />
         </Card>
       )}
 
@@ -139,13 +140,13 @@ export default function PaymentsPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] text-muted">A message with a forged signature is thrown away before it is linked to any merchant, so it never shows here.</p>
+          <p className="mt-2 text-xs text-muted">A message with a forged signature is thrown away before it is linked to any merchant, so it never shows here.</p>
         </Card>
       )}
 
       {me.demo_mode && me.role !== "viewer" && (
         <Button variant="secondary" className="mt-3 w-full border-violet-300 text-violet-800" onClick={() => (setSim(true), setResult(null))}>
-          Demo: send a provider message
+          Test it: act as the payment provider
         </Button>
       )}
 
@@ -170,8 +171,8 @@ export default function PaymentsPage() {
               <input className={`${inputCls} tabular`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
           )}
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={twice} onChange={(e) => setTwice(e.target.checked)} /> Deliver the same message twice</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={tamper} onChange={(e) => setTamper(e.target.checked)} /> Send with a forged signature</label>
+          <label className="flex min-h-11 items-center gap-2.5 text-sm"><input type="checkbox" className="h-5 w-5 accent-[#0a6b4d]" checked={twice} onChange={(e) => setTwice(e.target.checked)} /> Deliver the same message twice</label>
+          <label className="flex min-h-11 items-center gap-2.5 text-sm"><input type="checkbox" className="h-5 w-5 accent-[#0a6b4d]" checked={tamper} onChange={(e) => setTamper(e.target.checked)} /> Send with a forged signature</label>
           {act.error && <ErrorBox message={act.error} />}
           <Button className="w-full" busy={act.busy === "sim"} disabled={needsPayment ? !target : !target && !parseRupees(amount)} onClick={simulate}>Send signed message</Button>
           {result && (
@@ -198,7 +199,7 @@ function MismatchRow({ m, onChange, owner }: { m: Mismatch; onChange: () => void
     <li className="py-2.5 text-sm">
       <p className="font-semibold">{KIND[m.kind] ?? m.kind.replaceAll("_", " ")}</p>
       <p className="mt-0.5 break-words text-xs text-muted">{m.detail}</p>
-      {owner && !open && <button className="mt-1 text-xs font-semibold text-brand underline" onClick={() => setOpen(true)}>Mark as sorted</button>}
+      {owner && !open && <TextAction className="-ml-2" onClick={() => setOpen(true)}>Mark as sorted</TextAction>}
       {open && (
         <div className="mt-2 space-y-2">
           <input aria-label="Resolution note" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you do about it?" />

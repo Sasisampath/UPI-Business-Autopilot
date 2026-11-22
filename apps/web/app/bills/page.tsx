@@ -3,8 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { useMe } from "@/components/shell";
-import { Badge, Button, Card, Empty, ErrorBox, Loading, Notice, PageHeader, Segmented, SimTag, useAction } from "@/components/ui";
+import { Badge, Button, Card, Empty, ErrorBox, Loading, Notice, PageHeader, Segmented, useAction } from "@/components/ui";
 import { api, fmtDateTime, inr, post, useApi } from "@/lib/api";
+import { emitDemo } from "@/lib/demo";
 
 interface Draft {
   id: string;
@@ -31,6 +32,7 @@ export default function BillsPage() {
     form.append("source", source);
     const up = await api("/v1/uploads", { method: "POST", body: form });
     const draft = await post("/v1/invoice-drafts/extract", { upload_id: up.id });
+    emitDemo("draft-created", { draftId: draft.id });
     router.push(`/bills/${draft.id}`);
   }
 
@@ -52,6 +54,7 @@ export default function BillsPage() {
               <input
                 ref={fileRef}
                 type="file"
+                aria-label="Bill photo or PDF"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 className="hidden"
                 onChange={(e) => {
@@ -68,8 +71,8 @@ export default function BillsPage() {
                   Try a sample WhatsApp bill
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-muted">JPEG, PNG, WebP or PDF, up to 10 MB. The sample arrives as a simulated WhatsApp media message.</p>
-              {act.busy && <Loading label="Reading the bill" />}
+              <p className="mt-2 text-xs leading-snug text-muted">Photo or PDF, up to 10 MB. The sample is a made-up handwritten bill, delivered like a WhatsApp photo.</p>
+              {act.busy && <Loading label="Reading the bill. This takes a moment" />}
               {act.error && (
                 <div className="mt-3">
                   <ErrorBox message={act.error} />
@@ -88,16 +91,16 @@ export default function BillsPage() {
               const blocking = d.issues.filter((i) => i.severity === "blocking").length;
               return (
                 <li key={d.id}>
-                  <Link href={d.status === "approved" && d.invoice_id ? `/invoices/${d.invoice_id}` : `/bills/${d.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm active:bg-brand-soft">
+                  <Link href={d.status === "approved" && d.invoice_id ? `/invoices/${d.invoice_id}` : `/bills/${d.id}`} className="flex min-h-14 items-center justify-between gap-3 py-2.5 text-sm active:bg-brand-soft">
                     <div className="min-w-0">
-                      <p className="truncate font-medium">{d.payload.customer_name ?? "Buyer not read"}</p>
-                      <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                        {fmtDateTime(d.created_at)} · {d.upload.source === "web" ? "Upload" : "WhatsApp"} <SimTag show={d.extraction_source === "simulated" || d.upload.source === "whatsapp_demo"} />
-                        {blocking > 0 && <span className="font-medium text-rose-700">{blocking} to fix</span>}
+                      <p className="truncate text-[15px] font-semibold">{d.payload.customer_name ?? "Buyer name not read"}</p>
+                      <p className="text-xs text-muted">
+                        {fmtDateTime(d.created_at)} · {d.upload.source === "web" ? "Uploaded" : "From WhatsApp"}
+                        {d.status === "needs_review" && blocking > 0 && <span className="font-semibold text-rose-700"> · {blocking} to fix</span>}
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="tabular">{inr(d.payload.total_paise)}</span>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="tabular text-base font-bold">{inr(d.payload.total_paise)}</span>
                       <Badge status={d.status} />
                     </div>
                   </Link>
@@ -106,7 +109,7 @@ export default function BillsPage() {
             })}
           </ul>
         </Card>
-        <Notice tone="blue">Extraction only ever produces a draft. Totals are recalculated by the system, and missing or conflicting numbers must be fixed by you.</Notice>
+        <Notice tone="blue">The AI only prepares a draft. The app re-adds every line itself, and you fix anything missing before it becomes an invoice.</Notice>
       </div>
     </>
   );

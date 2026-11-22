@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useMe } from "@/components/shell";
-import { Avatar, Badge, Button } from "@/components/ui";
+import { useState } from "react";
+import { Avatar, Badge, Button, ErrorBox } from "@/components/ui";
 import { setToken } from "@/lib/api";
+import { resetDemo, useGuide, writeGuide } from "@/lib/demo";
 
 const ITEMS = [
   { href: "/customers", label: "Customers", hint: "Who owes what, and what they said", icon: "M16 19v-1a4 4 0 00-8 0v1M12 11a3 3 0 100-6 3 3 0 000 6zM3 21h18" },
@@ -13,6 +15,10 @@ const ITEMS = [
 
 export default function MorePage() {
   const me = useMe();
+  const guide = useGuide();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reset = (withGuide: boolean) => (setBusy(withGuide ? "guide" : "reset"), setError(null), resetDemo(me.user_id, withGuide).catch((e) => (setError(e.message), setBusy(null))));
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 rounded-2xl border border-line bg-white p-4">
@@ -39,6 +45,18 @@ export default function MorePage() {
           </li>
         ))}
       </ul>
+      {me.demo_mode && me.role === "owner" && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <p className="text-[15px] font-bold text-amber-950">Guided demo</p>
+          <p className="mt-0.5 text-[13px] leading-snug text-amber-900">Walks through bill photo, review, part payments, a promise and a verified payment. Both buttons restore the same sample data, so every run starts from the same numbers.</p>
+          {error && <div className="mt-2"><ErrorBox message={error} /></div>}
+          <div className="mt-3 grid gap-2">
+            <Button busy={busy === "guide"} onClick={() => reset(true)}>{guide.active ? "Restart the guided demo" : "Start the guided demo"}</Button>
+            {guide.active && <Button variant="secondary" onClick={() => writeGuide({ active: false })}>End the guide</Button>}
+            <Button variant="secondary" busy={busy === "reset"} onClick={() => reset(false)}>Reset sample data only</Button>
+          </div>
+        </div>
+      )}
       <Button variant="secondary" className="w-full" onClick={() => setToken(null)}>Switch user</Button>
     </div>
   );

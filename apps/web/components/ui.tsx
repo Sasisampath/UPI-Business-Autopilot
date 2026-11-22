@@ -1,8 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { inr } from "@/lib/api";
+import { fmtDate, fmtDateTime, inr } from "@/lib/api";
+
+/** True when the whole workspace is demo data; set by the shell. */
+export const DemoModeContext = createContext(false);
 
 type Tone = "green" | "amber" | "orange" | "red" | "blue" | "violet" | "gray";
 
@@ -64,15 +67,28 @@ const STATUS: Record<string, [string, Tone]> = {
 export function Badge({ status, label, tone }: { status?: string; label?: string; tone?: Tone }) {
   const [text, t] = status ? (STATUS[status] ?? [status.replaceAll("_", " "), "gray"]) : [label ?? "", tone ?? "gray"];
   return (
-    <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${TONES[tone ?? t]}`}>
+    <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${TONES[tone ?? t]}`}>
       {label ?? text}
     </span>
   );
 }
 
-/** Marks anything that did not involve the real world: simulated money, simulated messages. */
+/** Marks a simulated item. In demo mode everything is simulated and the header already says so,
+ *  so the per-row chip is dropped there and a single SimNote per section is used instead. */
 export function SimTag({ show = true }: { show?: boolean }) {
-  return show ? <Badge label="Demo" tone="violet" /> : null;
+  const demo = useContext(DemoModeContext);
+  return show && !demo ? <Badge label="Simulated" tone="violet" /> : null;
+}
+
+/** One quiet line per section that discloses simulated money or messages. */
+export function SimNote({ children = "Sample data. These payments are simulated; no real money moved." }: { children?: React.ReactNode }) {
+  const demo = useContext(DemoModeContext);
+  return demo ? (
+    <p className="mt-2 flex items-start gap-1.5 text-xs leading-snug text-violet-800">
+      <span aria-hidden className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+      <span>{children}</span>
+    </p>
+  ) : null;
 }
 
 export function Card({ title, action, children, className = "" }: { title?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
@@ -92,9 +108,9 @@ export function Card({ title, action, children, className = "" }: { title?: stri
 export function Stat({ label, paise, hint, tone = "text-ink" }: { label: string; paise: number; hint?: React.ReactNode; tone?: string }) {
   return (
     <div className="rounded-2xl border border-line bg-white p-3">
-      <p className="text-[11px] font-semibold leading-tight text-muted">{label}</p>
+      <p className="text-xs font-semibold leading-tight text-muted">{label}</p>
       <p className={`tabular mt-1 text-lg font-bold leading-tight ${tone}`}>{inr(paise)}</p>
-      {hint && <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] leading-tight text-muted">{hint}</div>}
+      {hint && <div className="mt-1 flex flex-wrap items-center gap-1 text-xs leading-tight text-muted">{hint}</div>}
     </div>
   );
 }
@@ -103,7 +119,7 @@ export function PageHeader({ title, subtitle, back, action }: { title: string; s
   return (
     <div className="mb-3">
       {back && (
-        <Link href={back.href} className="-ml-1 mb-1 inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-sm font-medium text-brand">
+        <Link href={back.href} className="-ml-2 inline-flex min-h-11 items-center gap-0.5 rounded-full px-2 text-[15px] font-semibold text-brand">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 5l-7 7 7 7" /></svg>
           {back.label}
         </Link>
@@ -165,7 +181,7 @@ export function Button({ variant = "primary", busy, className = "", children, ..
   );
 }
 
-export const inputCls = "w-full min-h-11 rounded-xl border border-line px-3 py-2 text-[15px] outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+export const inputCls = "w-full min-h-11 rounded-xl border border-line px-3 py-2 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -203,11 +219,11 @@ export function Segmented({ options, value, onChange }: { options: { value: stri
   return (
     <div className="mb-3 flex gap-1 rounded-full bg-stone-200/70 p-1" role="tablist">
       {options.map((o) => {
-        const cls = `flex-1 whitespace-nowrap rounded-full px-1 py-2 text-center text-[12.5px] font-semibold ${o.value === value ? "bg-white text-brand shadow-sm" : "text-muted"}`;
+        const cls = `flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-full px-1 text-center text-[13px] font-semibold ${o.value === value ? "bg-white text-brand shadow-sm" : "text-muted"}`;
         const inner = (
           <>
             {o.label}
-            {!!o.count && <span className="ml-1 rounded-full bg-rose-600 px-1.5 py-px text-[10px] text-white">{o.count}</span>}
+            {!!o.count && <span className="ml-1 rounded-full bg-rose-600 px-1.5 py-px text-xs text-white">{o.count}</span>}
           </>
         );
         return o.href ? (
@@ -223,16 +239,29 @@ export function Segmented({ options, value, onChange }: { options: { value: stri
 /** Bottom sheet anchored to the phone viewport. */
 export function Sheet({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: React.ReactNode }) {
   const [host, setHost] = useState<Element | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => setHost(document.querySelector(".phone")), []);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previous?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   if (!open || !host) return null;
   return createPortal(
     <div className="absolute inset-0 z-30 flex flex-col justify-end" role="dialog" aria-modal="true" aria-label={title}>
       <button aria-label="Close" className="fade-in absolute inset-0 bg-black/45" onClick={onClose} />
-      <div className="sheet-up relative max-h-[88%] overflow-y-auto rounded-t-3xl bg-white px-4 pb-6 pt-2 scroll-area">
+      <div ref={panel} tabIndex={-1} className="sheet-up scroll-area relative max-h-[90%] overflow-y-auto overscroll-contain rounded-t-3xl bg-white px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 outline-none">
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-stone-300" />
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="rounded-full px-2 py-1 text-sm font-semibold text-muted">Close</button>
+          <button onClick={onClose} className="-mr-2 min-h-11 rounded-full px-3 text-sm font-semibold text-muted">Close</button>
         </div>
         {children}
       </div>
@@ -243,7 +272,7 @@ export function Sheet({ open, title, onClose, children }: { open: boolean; title
 
 /** Round initials avatar, as in a chat list. */
 export function Avatar({ name, size = "h-10 w-10 text-sm" }: { name: string; size?: string }) {
-  const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+  const initials = name.replace(/\(.*?\)/g, "").split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
   const hues = ["bg-emerald-100 text-emerald-800", "bg-amber-100 text-amber-900", "bg-sky-100 text-sky-800", "bg-rose-100 text-rose-800", "bg-teal-100 text-teal-800"];
   const hue = hues[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % hues.length];
   return <span className={`flex shrink-0 items-center justify-center rounded-full font-bold ${size} ${hue}`} aria-hidden>{initials}</span>;
@@ -261,10 +290,39 @@ export function AuditList({ items }: { items: { id: string; actor: string; actio
             {typeof a.data.amount_paise === "number" && <span className="tabular ml-1.5 font-bold">{inr(a.data.amount_paise as number)}</span>}
           </p>
           <p className="text-xs text-muted">
-            {a.actor.replaceAll("_", " ")} · {new Date(a.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+            {a.actor.replaceAll("_", " ")} · {fmtDateTime(a.created_at)}
           </p>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Small text action with a full-size tap area. */
+export function TextAction({ tone = "brand", className = "", ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "brand" | "muted" | "danger" }) {
+  const c = { brand: "text-brand", muted: "text-muted", danger: "text-rose-700" }[tone];
+  return <button type="button" {...rest} className={`inline-flex min-h-11 items-center rounded-full px-2 text-[13px] font-semibold underline-offset-2 active:underline disabled:opacity-45 ${c} ${className}`} />;
+}
+
+/** Native date picker that always shows the date the Indian way ("Sun, 22 Nov 2026"),
+ *  whatever the browser locale. The real <input type="date"> sits on top, invisible, so the
+ *  platform picker and keyboard entry still work. */
+export function DateField({ value, onChange, label, max, flagged, compact }: { value: string | null; onChange: (v: string | null) => void; label: string; max?: string; flagged?: boolean; compact?: boolean }) {
+  const id = useId();
+  return (
+    <span className={`relative flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 text-base focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 ${flagged ? "border-amber-500 bg-amber-50" : "border-line bg-white"}`}>
+      <span className={value ? "" : "text-muted"}>{value ? (compact ? fmtDate(value).replace(/ \d{4}$/, "") : fmtDate(value)) : "Choose date"}</span>
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M5 6h14v14H5V6zm0 4h14M9 3v4m6-4v4" /></svg>
+      <input id={id} type="date" aria-label={label} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" value={value ?? ""} max={max} onChange={(e) => onChange(e.target.value || null)} />
+    </span>
+  );
+}
+
+export function Skeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div role="status" aria-label="Loading" className="animate-pulse space-y-3">
+      <div className="h-28 rounded-3xl bg-stone-200/80" />
+      {Array.from({ length: rows }).map((_, i) => <div key={i} className="h-16 rounded-2xl bg-stone-200/60" />)}
+    </div>
   );
 }

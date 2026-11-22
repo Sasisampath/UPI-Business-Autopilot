@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMe } from "@/components/shell";
-import { Badge, Button, Card, ErrorBox, Field, Loading, Notice, PageHeader, inputCls, useAction } from "@/components/ui";
+import { Badge, Button, Card, DateField, ErrorBox, Field, Loading, Notice, PageHeader, TextAction, inputCls, useAction } from "@/components/ui";
+import { emitDemo } from "@/lib/demo";
 import { ApiError, Issue, api, inr, parseRupees, post, rupeesText, useApi } from "@/lib/api";
 
 interface Item {
@@ -75,6 +76,7 @@ export default function ReviewBillPage() {
   const [dirty, setDirty] = useState(false);
   const [ack, setAck] = useState(false);
   const [image, setImage] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(false);
   const act = useAction();
 
   function adopt(d: Draft) {
@@ -96,6 +98,36 @@ export default function ReviewBillPage() {
       if (url) URL.revokeObjectURL(url);
     };
   }, [draft?.upload.id, draft?.upload.has_file]);
+
+  const [autoSave, setAutoSave] = useState(false);
+  const saveRef = useRef<() => Promise<unknown>>(null);
+  useEffect(() => {
+    if (!autoSave || !dirty) return;
+    setAutoSave(false);
+    act.run("save", () => saveRef.current?.() ?? Promise.resolve());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave, dirty, form]);
+
+  // Guided demo helper: types the corrections a merchant would make. It only edits the form;
+  // saving and approving still go through the same server-side checks.
+  useEffect(() => {
+    const fill = () => {
+      setForm((f) => {
+        if (!f) return f;
+        const items = f.items.map((it) => {
+          const quantity = it.quantity ?? "1";
+          const whole = /^\d+$/.test(quantity) && it.unit_price_paise !== null;
+          return { ...it, quantity, line_total_paise: whole ? Number(quantity) * (it.unit_price_paise as number) : it.line_total_paise };
+        });
+        const sum = items.reduce((a, it) => a + (it.line_total_paise ?? 0), 0);
+        return { ...f, items, subtotal_paise: null, total_paise: sum + (f.tax_paise ?? 0), uncertain_fields: [] };
+      });
+      setDirty(true);
+      setAutoSave(true);
+    };
+    window.addEventListener("demo-fill-review", fill);
+    return () => window.removeEventListener("demo-fill-review", fill);
+  }, []);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (loading || !draft || !form) return <Loading label="Loading draft" />;
@@ -119,10 +151,12 @@ export default function ReviewBillPage() {
     adopt(d);
     return d;
   }
+  saveRef.current = save;
   async function approve() {
     try {
       if (dirty) await save();
       const res = await post(`/v1/invoice-drafts/${id}/approve`, { acknowledge_warnings: ack });
+      emitDemo("invoice-approved", { invoiceId: res.invoice.id });
       router.push(`/invoices/${res.invoice.id}`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) reload();
@@ -132,11 +166,11 @@ export default function ReviewBillPage() {
 
   return (
     <>
-      <PageHeader title="Review bill" back={{ href: "/bills", label: "Bills" }} subtitle={draft.upload.filename} action={<Badge status={draft.status} />} />
+      <PageHeader title="Review bill" back={{ href: "/bills", label: "Bills" }} subtitle={draft.upload.source === "web" ? draft.upload.filename : "Bill photo received on WhatsApp"} action={<Badge status={draft.status} />} />
       <div className="space-y-4">
         {draft.extraction_source === "simulated" && (
           <Notice>
-            <strong>Simulated extraction.</strong> No Gemini key is configured, so this is a fixed sample draft. It was not read from your file. Set <code>GEMINI_API_KEY</code> to read real bills.
+            <strong>Sample reading.</strong> No AI key is set up, so this draft is a fixed sample and was not read from your photo. With a Gemini key the photo itself is read.
           </Notice>
         )}
         {draft.extraction_error && <Notice tone="amber">{draft.extraction_error}</Notice>}
@@ -152,7 +186,10 @@ export default function ReviewBillPage() {
               <a href={image} target="_blank" rel="noreferrer" className="text-sm text-brand underline">Open the PDF in a new tab</a>
             ) : image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt="Uploaded bill" className="max-h-[70vh] w-full rounded-lg border border-line object-contain" />
+              <>
+                <img src={image} alt="Photo of the paper bill" className={`w-full rounded-xl border border-line ${zoom ? "" : "max-h-48 object-cover object-top"}`} />
+                <TextAction onClick={() => setZoom((z) => !z)} aria-expanded={zoom}>{zoom ? "Show less" : "Show full bill"}</TextAction>
+              </>
             ) : (
               <p className="text-sm text-muted">{draft.upload.has_file ? "Loading image…" : "The file is not available yet."}</p>
             )}
@@ -174,7 +211,7 @@ export default function ReviewBillPage() {
                     </select>
                   </Field>
                   <Field label="Invoice date" error={fieldError("invoice_date")}>
-                    <input type="date" className={`${inputCls} ${flagged("invoice_date") ? "border-amber-500 bg-amber-50" : ""}`} value={form.invoice_date ?? ""} onChange={(e) => update({ invoice_date: e.target.value || null }, "invoice_date")} />
+                    <DateField label="Invoice date" value={form.invoice_date} flagged={flagged("invoice_date")} onChange={(v) => update({ invoice_date: v }, "invoice_date")} />
                   </Field>
                 </div>
 
@@ -197,13 +234,13 @@ export default function ReviewBillPage() {
                             </div>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span className={conflict ? "font-medium text-amber-900" : "text-muted"}>{conflict ? conflict.message : dirty ? "Save to recalculate" : calc !== undefined ? `Qty × price = ${inr(calc)}` : ""}</span>
+                            <span className={conflict ? "font-medium text-amber-900" : "text-muted"}>{conflict ? conflict.message : dirty ? "Save to re-add" : calc !== undefined ? `Qty × price = ${inr(calc)}` : ""}</span>
                             {editable && (
-                              <span className="flex gap-3">
+                              <span className="-my-2 flex">
                                 {conflict?.code === "line_total_conflict" && calc !== undefined && (
-                                  <button type="button" className="font-medium text-brand underline" onClick={() => updateItem(i, { line_total_paise: calc })}>Use {inr(calc)}</button>
+                                  <TextAction onClick={() => updateItem(i, { line_total_paise: calc })}>Use {inr(calc)}</TextAction>
                                 )}
-                                <button type="button" className="text-rose-700 underline" onClick={() => update({ items: form.items.filter((_, j) => j !== i) }, "items")}>Remove</button>
+                                <TextAction tone="danger" onClick={() => update({ items: form.items.filter((_, j) => j !== i) }, "items")}>Remove</TextAction>
                               </span>
                             )}
                           </div>
@@ -211,7 +248,7 @@ export default function ReviewBillPage() {
                       );
                     })}
                   </div>
-                  <p className="mt-1 text-xs text-muted">Columns: description · quantity · unit price (₹) · line total as written (₹)</p>
+                  <p className="mt-1 text-xs text-muted">Each item: name, then quantity · rate (₹) · amount written on the bill (₹)</p>
                   {editable && (
                     <Button type="button" variant="ghost" className="mt-1" onClick={() => update({ items: [...form.items, { description: null, quantity: null, unit_price_paise: null, line_total_paise: null }] }, "items")}>
                       + Add item
@@ -232,8 +269,8 @@ export default function ReviewBillPage() {
                 </div>
               </fieldset>
               <div className="mt-3 flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-sm">
-                <span className="text-muted">System-calculated total</span>
-                <span className="tabular font-semibold">{dirty ? "Save to recalculate" : computed ? inr(computed.total_paise) : "Incomplete lines"}</span>
+                <span className="text-muted">Total added up by the app</span>
+                <span className="tabular font-semibold">{dirty ? "Save to re-add" : computed ? inr(computed.total_paise) : "Some lines are incomplete"}</span>
               </div>
             </Card>
 
@@ -257,7 +294,7 @@ export default function ReviewBillPage() {
                       </label>
                     )}
                     {act.error && <div className="mt-3"><ErrorBox message={act.error} /></div>}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 grid gap-2">
                       <Button variant="secondary" disabled={!dirty} busy={act.busy === "save"} onClick={() => act.run("save", save)}>Save changes</Button>
                       <Button disabled={(!dirty && blocking.length > 0) || (warnings.length > 0 && !ack && !dirty)} busy={act.busy === "approve"} onClick={() => act.run("approve", approve)}>
                         {dirty ? "Save and approve" : "Approve and create invoice"}

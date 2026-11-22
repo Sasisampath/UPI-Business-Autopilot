@@ -42,7 +42,9 @@ body {
   position: relative;
   display: flex;
   width: 100%;
-  height: 100dvh;
+  /* --app-h tracks the visual viewport (set in the shell) so the composer and sheets stay above
+     the on-screen keyboard on iOS, where dvh does not shrink. */
+  height: var(--app-h, 100dvh);
   flex-direction: column;
   overflow: hidden;
   background: var(--color-canvas);
@@ -60,6 +62,19 @@ body {
     border: 9px solid #14201b;
     box-shadow: 0 30px 70px -20px rgb(20 32 27 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.25);
   }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+button,
+a,
+summary,
+label {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .wallpaper {
@@ -123,6 +138,25 @@ textarea {
   .page-in,
   .sheet-up,
   .fade-in {
+    animation: none;
+  }
+}
+
+@keyframes guide-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.guide-in {
+  animation: guide-in 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-in {
     animation: none;
   }
 }

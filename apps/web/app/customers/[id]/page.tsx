@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { PaymentRow } from "@/components/payments";
 import { useMe } from "@/components/shell";
 import { AuditList, Badge, Button, Card, Empty, ErrorBox, Field, Loading, PageHeader, SimTag, inputCls, useAction } from "@/components/ui";
-import { api, fmtDate, fmtDateTime, inr, post, useApi } from "@/lib/api";
+import { api, fmtDate, fmtDateTime, fmtDay, inr, methodLabel, post, useApi } from "@/lib/api";
 import type { Audit, Customer, Invoice, Payment, PromiseRow } from "@/lib/types";
 
 interface Ledger {
@@ -96,7 +96,7 @@ export default function CustomerPage() {
               {data.promises.map((p) => (
                 <li key={p.id} className="py-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="flex flex-wrap items-center gap-1.5"><Badge status={p.status} /> {fmtDate(p.promised_date)} · {p.method.toUpperCase()}{p.pickup_window && ` · pickup ${p.pickup_window}`} <SimTag show={p.simulated} /></span>
+                    <span className="flex flex-wrap items-center gap-1.5"><Badge status={p.status} /> {fmtDay(p.promised_date, me.today)} · {methodLabel(p.method)}{p.pickup_window && ` · pickup ${p.pickup_window}`} <SimTag show={p.simulated} /></span>
                     <span className="tabular font-medium">{inr(p.amount_paise)}</span>
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted">“{p.evidence_text}”</p>

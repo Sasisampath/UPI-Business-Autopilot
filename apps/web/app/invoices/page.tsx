@@ -27,7 +27,7 @@ export default function InvoicesPage() {
               </span>
               <span className="text-right">
                 <span className="tabular block text-base font-bold">{inr(i.due_paise)}</span>
-                <span className="block text-[11px] text-muted">due of {inr(i.total_paise)}</span>
+                <span className="block text-xs text-muted">due of {inr(i.total_paise)}</span>
                 <Badge status={i.status} />
               </span>
             </Link>

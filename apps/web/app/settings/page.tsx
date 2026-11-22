@@ -1,7 +1,8 @@
 "use client";
 import { useMe } from "@/components/shell";
 import { Badge, Button, Card, ErrorBox, Loading, PageHeader, useAction } from "@/components/ui";
-import { post, setToken, useApi } from "@/lib/api";
+import { setToken, useApi } from "@/lib/api";
+import { resetDemo } from "@/lib/demo";
 
 interface Integration {
   key: string;
@@ -55,9 +56,9 @@ export default function SettingsPage() {
               <Button
                 variant="danger"
                 busy={act.busy === "reset"}
-                onClick={() => window.confirm("Erase everything and restore the sample data for all demo merchants?") && act.run("reset", async () => (await post("/v1/demo/reset"), setToken(null)))}
+                onClick={() => window.confirm("Erase everything and restore the sample data for all demo merchants?") && act.run("reset", () => resetDemo(me.user_id, false))}
               >
-                Reset demo data
+                Reset sample data
               </Button>
             )}
           </div>
