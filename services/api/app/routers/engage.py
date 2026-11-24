@@ -296,6 +296,27 @@ def voice_customer_balance(body: VoiceToolIn, merchant_id: str = Depends(_voice_
             "spoken_answer": res["answer"]}
 
 
+class VoiceAskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/voice-tools/ask")
+def voice_ask(body: VoiceAskIn, merchant_id: str = Depends(_voice_merchant), db: Session = Depends(get_db)):
+    """One tool that connects a voice agent to the whole read-only ledger assistant. The agent passes
+    the merchant's question; the answer text comes from ledger tools, never from the voice model."""
+    res = assistant.answer(db, merchant_id, body.question, clock.today_ist(), routed_by="voice_tool")
+    return {"spoken_answer": res["answer"], "tool": res["tool"], "read_only": True}
+
+
+@router.post("/voice-tools/customer-payments")
+def voice_customer_payments(body: VoiceToolIn, merchant_id: str = Depends(_voice_merchant), db: Session = Depends(get_db)):
+    customer = assistant.find_customer(db, merchant_id, body.customer_name or "")
+    if customer is None:
+        return {"found": False, "message": "No matching customer."}
+    res = assistant.answer(db, merchant_id, f"payments {customer.name}", clock.today_ist(), tool="get_customer_payments", routed_by="voice_tool")
+    return {"found": True, "customer_name": customer.name, "spoken_answer": res["answer"]}
+
+
 @router.post("/voice-tools/today-promises")
 def voice_today_promises(merchant_id: str = Depends(_voice_merchant), db: Session = Depends(get_db)):
     res = assistant.answer(db, merchant_id, "promises today", clock.today_ist(), tool="get_today_promises", routed_by="voice_tool")

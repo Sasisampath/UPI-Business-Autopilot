@@ -1,9 +1,11 @@
 """Auth, customers, invoices, uploads and invoice drafts."""
 import hashlib
+import hmac
 import os
+import time
 from datetime import date
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -31,6 +33,13 @@ ALLOWED_TYPES = {"image/jpeg": (b"\xff\xd8\xff", ".jpg"), "image/png": (b"\x89PN
 # ---- auth ---------------------------------------------------------------------------------------
 class DemoLogin(BaseModel):
     user_id: str
+    access_code: str | None = Field(default=None, max_length=200)
+
+
+@router.get("/auth/demo-config")
+def demo_config():
+    s = get_settings()
+    return {"demo_mode": s.demo_mode, "access_code_required": bool(s.demo_mode and s.demo_access_code)}
 
 
 @router.get("/auth/demo-users")
@@ -42,11 +51,31 @@ def demo_users(db: Session = Depends(get_db)):
             if m in merchants]
 
 
+# Wrong access codes are throttled per client address (in memory; enough for a single-process demo).
+_FAILED: dict[str, list[float]] = {}
+_MAX_FAILS, _WINDOW = 10, 300.0
+
+
+def _client(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
 @router.post("/auth/demo-login")
-def demo_login(body: DemoLogin, db: Session = Depends(get_db)):
+def demo_login(body: DemoLogin, request: Request, db: Session = Depends(get_db)):
     """Demo-only passwordless login for the seeded users. Disabled when DEMO_MODE=false."""
-    if not get_settings().demo_mode:
+    settings = get_settings()
+    if not settings.demo_mode:
         raise HTTPException(404, "Demo login is disabled")
+    if settings.demo_access_code:
+        who, now = _client(request), time.monotonic()
+        recent = [t for t in _FAILED.get(who, []) if now - t < _WINDOW]
+        if len(recent) >= _MAX_FAILS:
+            raise HTTPException(429, "Too many wrong codes. Wait a few minutes and try again.")
+        if not hmac.compare_digest(settings.demo_access_code.encode(), (body.access_code or "").encode()):
+            _FAILED[who] = recent + [now]
+            raise HTTPException(403, "Enter the demo access code to continue")
+        _FAILED.pop(who, None)
     user = db.get(User, body.user_id)
     if user is None or user.id not in {u[0] for u in DEMO_USERS}:
         raise HTTPException(404, "Unknown demo user")
@@ -267,6 +296,12 @@ def upload_file(upload_id: str, p: Principal = Depends(current_principal), db: S
 
 class ExtractIn(BaseModel):
     upload_id: str
+    # auto = Gemini when a key is configured, otherwise the simulated fallback.
+    mode: str = Field(default="auto", pattern="^(auto|gemini|simulated)$")
+
+
+class ReExtractIn(BaseModel):
+    mode: str = Field(pattern="^(gemini|simulated)$")
 
 
 class DraftPatch(BaseModel):
@@ -281,6 +316,7 @@ class ApproveIn(BaseModel):
 def draft_dict(db: Session, d: InvoiceDraft) -> dict:
     up = db.get(Upload, d.upload_id)
     return {"id": d.id, "status": d.status, "extraction_source": d.extraction_source, "extraction_error": d.extraction_error,
+            "extraction_failed": d.extraction_error is not None, "gemini_available": bool(get_settings().gemini_api_key),
             "payload": d.payload, "customer_id": d.customer_id, "invoice_id": d.invoice_id,
             "computed": extraction_rules.compute_totals(d.payload or {}),
             "computed_lines": extraction_rules.compute_lines(d.payload or {}),
@@ -293,8 +329,14 @@ def draft_dict(db: Session, d: InvoiceDraft) -> dict:
 @router.post("/invoice-drafts/extract", status_code=201)
 def extract(body: ExtractIn, p: Principal = Depends(can_write), db: Session = Depends(get_db)):
     up = owned(db, Upload, body.upload_id, p.merchant_id)
-    draft = run_extraction(db, get_settings(), up, actor=p.user_id)
+    _require_gemini(body.mode)
+    draft = run_extraction(db, get_settings(), up, actor=p.user_id, mode=body.mode)
     return draft_dict(db, draft)
+
+
+def _require_gemini(mode: str) -> None:
+    if mode == "gemini" and not get_settings().gemini_api_key:
+        raise HTTPException(409, "Gemini is not set up on this server. Use the simulated sample or type the bill in by hand.")
 
 
 @router.get("/invoice-drafts")
@@ -314,6 +356,16 @@ def _reviewable(db: Session, draft_id: str, merchant_id: str) -> InvoiceDraft:
     if d.status != "needs_review":
         raise HTTPException(409, f"Draft is already {d.status}")
     return d
+
+
+@router.post("/invoice-drafts/{draft_id}/re-extract")
+def re_extract(draft_id: str, body: ReExtractIn, p: Principal = Depends(can_write), db: Session = Depends(get_db)):
+    """Read the same uploaded file again (Gemini), or explicitly switch this draft to the simulated
+    sample. Replaces the draft's contents; only allowed while it is still under review."""
+    d = _reviewable(db, draft_id, p.merchant_id)
+    _require_gemini(body.mode)
+    run_extraction(db, get_settings(), db.get(Upload, d.upload_id), actor=p.user_id, mode=body.mode, draft=d)
+    return draft_dict(db, d)
 
 
 @router.patch("/invoice-drafts/{draft_id}")

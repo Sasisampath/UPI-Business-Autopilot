@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10 * 1024 * 1024
     web_base_url: str = "http://localhost:3000"
     session_hours: int = 12
+    # Optional shared code for the passwordless demo sign-in. Set it before sharing a demo link.
+    demo_access_code: str | None = None
 
     # Demo payment provider (always simulated money).
     demo_webhook_secret: str = "demo-webhook-secret-change-me"
@@ -20,6 +22,13 @@ class Settings(BaseSettings):
     # Gemini extraction / assistant routing (optional).
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_seconds: int = 60
+    # Cap on real Gemini reads per merchant per day (protects a shared demo's quota). 0 = no cap.
+    gemini_daily_limit: int = 200
+
+    # Shared-preview guard: when true the server refuses to start unless it is locked down
+    # (access code set, non-default secrets, no live payment or messaging credentials).
+    preview_mode: bool = False
 
     # Razorpay — test mode only in this MVP.
     razorpay_key_id: str | None = None

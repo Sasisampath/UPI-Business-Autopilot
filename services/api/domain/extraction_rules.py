@@ -13,7 +13,7 @@ from .money import format_inr, line_total_paise
 
 EMPTY_PAYLOAD = {"customer_name": None, "invoice_date": None, "currency": "INR", "items": [],
                  "subtotal_paise": None, "tax_paise": None, "total_paise": None, "uncertain_fields": [],
-                 "source_language": None, "needs_human_review": True}
+                 "source_language": None, "reader_notes": None, "needs_human_review": True}
 
 
 def _issue(code: str, field: str, severity: str, message: str) -> dict:
@@ -117,6 +117,9 @@ def review_draft(db: Session, draft: InvoiceDraft) -> list[dict]:
     for field in sorted(uncertain):
         if not any(i["field"] == field or i["field"].startswith(field + ".") for i in issues):
             issues.append(_issue("uncertain", field, "warning", f"Low-confidence reading of {_label(field)}; please check it against the bill."))
+
+    if (p.get("reader_notes") or "").strip():
+        issues.append(_issue("reader_note", "reader_notes", "warning", f"Note from the reading: {p['reader_notes'].strip()}"))
 
     upload = db.get(Upload, draft.upload_id)
     if upload:

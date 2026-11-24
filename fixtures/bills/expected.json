@@ -1,0 +1,31 @@
+{
+  "_about": "Ground truth for the synthetic bills in this folder (fictional). Amounts in rupees as written. must_flag lists values a correct reader has to mark unclear or leave empty rather than guess.",
+  "english-handwritten.png": {
+    "kind": "handwriting-style, English, one wrong line amount on purpose",
+    "customer_name": "Murugan Stores", "invoice_date": "2026-11-18", "total": "7270",
+    "items": [["Ponni rice 25kg bag", "2", "1200", "2400"], ["Toor dal 1kg", "5", "160", "850"], ["Sunflower oil 5L can", "3", "640", "1920"], ["Sugar 50kg bag", "1", "2100", "2100"]],
+    "backend_must_catch": "line 2: 5 x 160 = 800 but the bill says 850"
+  },
+  "tamil-handwritten.png": {
+    "kind": "handwriting-style, Tamil only",
+    "customer_name": "அன்பு ப்ரொவிஷன் ஸ்டோர்", "customer_name_en": "Anbu Provision Store", "invoice_date": "2026-11-17", "total": "9430",
+    "items": [["அரிசி 25 கிலோ மூட்டை", "4", "1250", "5000"], ["துவரம் பருப்பு 1 கிலோ", "10", "165", "1650"], ["சர்க்கரை 1 கிலோ", "20", "46", "920"], ["நல்லெண்ணெய் 1 லிட்டர்", "6", "310", "1860"]]
+  },
+  "printed-tax-invoice.pdf": {
+    "kind": "printed PDF with GST lines and decimals",
+    "customer_name": "Kavitha Supermarket", "invoice_date": "2026-11-16", "subtotal": "17752.50", "tax": "887.63", "total": "18640.13",
+    "items": [["Tea dust 1 kg pack", "12", "700.00", "8400.00"], ["Detergent powder 5 kg", "8", "450.00", "3600.00"], ["Biscuit carton (24 pcs)", "5", "1150.50", "5752.50"]]
+  },
+  "mixed-creased-dim.jpg": {
+    "kind": "imperfect: tilted, blurred, dim, shadow; Tamil + English mixed",
+    "customer_name": "பாண்டியன் டீ ஸ்டால்", "customer_name_en": "Pandian Tea Stall", "invoice_date": "2026-11-15", "total": "6450",
+    "items": [["Tea dust 1kg", "6", "700", "4200"], ["பால் பவுடர் (milk powder) 1kg", "3", "520", "1560"], ["Sugar 1kg", "15", "46", "690"]]
+  },
+  "smudged-cut-off.jpg": {
+    "kind": "imperfect: smudged quantity, missing year, total cut off the photo",
+    "customer_name": "Bay Retail", "invoice_date": null, "total": null,
+    "items": [["Atta 10kg bag", "8", "500", "4000"], ["Groundnut oil 15L tin", null, "2850", null], ["Salt 1kg", "30", "22", "660"], ["Red chilli 1kg", "4", "280", "1120"]],
+    "must_flag": ["items[1].quantity", "invoice_date", "total_paise"]
+  },
+  "not-a-bill.png": { "kind": "not a bill (shop poster)", "expect_error": "not_a_bill" }
+}
